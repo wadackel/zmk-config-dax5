@@ -1,0 +1,3 @@
+# Editor session backups (one per server-process lifetime).
+dax5.keymap.*.bak
+dax5.keymap.tmp

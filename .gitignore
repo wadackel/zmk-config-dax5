@@ -1,0 +1,25 @@
+# ZMK Local Build Environment
+build/
+.west/
+modules/
+zephyr/*
+!zephyr/module.yml
+zmk/
+zmk-driver-paw3222/
+zmk-pmw3610-driver/
+zmk-rgbled-widget/
+zmk-mouse-gesture/
+bootloader/
+*.uf2
+*.bin
+*.hex
+*.elf
+/.ccache/
+
+# Nix
+result
+result-*
+
+# Tester
+tools/tester/node_modules/
+tools/tester/dist/

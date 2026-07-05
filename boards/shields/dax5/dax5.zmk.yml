@@ -1,0 +1,12 @@
+file_format: "1"
+id: dax5
+name: dax5
+type: shield
+url: https://github.com/wadackel/zmk-config-dax5
+requires:
+  - seeeduino_xiao_ble
+features:
+  - keys
+siblings:
+  - dax5_L
+  - dax5_R

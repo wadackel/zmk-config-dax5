@@ -1,0 +1,13 @@
+@import 'tailwindcss' source('../app');
+
+/*
+ * HonoX inserts a `<honox-island>` custom element wrapper around every island
+ * render. Custom elements default to `display: inline`, which breaks flex
+ * layouts that need to grow through the island boundary (e.g. the editor's
+ * `<div class="h-screen flex flex-col">` route shell that contains the
+ * `<KeymapEditor />` island and expects it to fill the remaining vertical
+ * space). Make the wrapper transparent to flex layout instead.
+ */
+honox-island {
+  display: contents;
+}
