@@ -276,7 +276,7 @@ export function KeycodeCombobox({
       <input
         ref={inputRef}
         type="text"
-        class="w-full bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+        class="w-full bg-surface-3 border border-border-strong rounded px-2 py-1 text-fg font-mono"
         value={query}
         placeholder={placeholder ?? 'type to search (e.g. lang, scroll, A)'}
         onFocus={() => setOpen(true)}
@@ -308,10 +308,10 @@ export function KeycodeCombobox({
         <div
           ref={listRef}
           role="listbox"
-          class="mt-1 max-h-[28rem] overflow-auto bg-[#0f0f0f] border border-zinc-700 rounded shadow-lg"
+          class="mt-1 max-h-[28rem] overflow-auto bg-surface-1 border border-border-strong rounded shadow-lg"
         >
           {items.length === 0 && (
-            <div class="px-3 py-2 text-zinc-500 text-xs italic">
+            <div class="px-3 py-2 text-fg-subtle text-xs italic">
               No catalogue match. The current input "{query}" will save as-is.
             </div>
           )}
@@ -325,11 +325,11 @@ export function KeycodeCombobox({
                 key={`${item.section}-${token}-${i}`}
                 type="button"
                 role="option"
-                aria-selected={isActive}
+                aria-selected={isActive ? 'true' : 'false'}
                 data-idx={i}
                 data-token={token}
                 class={`flex items-center justify-between w-full text-left px-3 py-1 text-sm font-mono ${
-                  isActive ? 'bg-blue-700 text-white' : 'text-zinc-200 hover:bg-zinc-800'
+                  isActive ? 'bg-blue-700 text-fg' : 'text-fg hover:bg-surface-4'
                 }`}
                 onMouseEnter={() => setActiveIdx(i)}
                 onMouseDown={(e: Event) => e.preventDefault()} // keep input focus
@@ -340,19 +340,19 @@ export function KeycodeCombobox({
                     <span class="text-[9px] text-emerald-400 uppercase">recent</span>
                   )}
                   {item.section === 'common' && (
-                    <span class="text-[9px] text-zinc-500 uppercase">common</span>
+                    <span class="text-[9px] text-fg-subtle uppercase">common</span>
                   )}
                   <span>{label}</span>
                 </span>
-                {showTokenSuffix && <span class="text-zinc-500 text-xs">{token}</span>}
+                {showTokenSuffix && <span class="text-fg-subtle text-xs">{token}</span>}
               </button>
             )
           })}
         </div>
       )}
       {!pinModifiers && modWraps.size > 0 && (
-        <div class="mt-1 text-[10px] text-zinc-500">
-          Will save as: <span class="text-zinc-300">{applyModifiersOrdered(baseToken, modWraps)}</span>
+        <div class="mt-1 text-[10px] text-fg-subtle">
+          Will save as: <span class="text-fg-muted">{applyModifiersOrdered(baseToken, modWraps)}</span>
         </div>
       )}
     </div>

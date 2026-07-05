@@ -1,4 +1,5 @@
 import { useState } from 'hono/jsx'
+import { CommittingTextInput } from '../../components/ui/field'
 import { useEditor } from '../../lib/editor-state/context'
 import { BindingPicker } from './binding-picker'
 import type {
@@ -94,7 +95,7 @@ export function MouseGesturesTab() {
   return (
     <div class="flex flex-col gap-6">
       {blocks.length === 0 && (
-        <div class="text-zinc-500 text-sm font-mono">No mouse gesture blocks defined.</div>
+        <div class="text-fg-subtle text-sm font-mono">No mouse gesture blocks defined.</div>
       )}
       {blocks.map((block, idx) => (
         <BlockEditor
@@ -149,10 +150,10 @@ function BlockEditor({
   const kindBadge = block.kind === 'root' ? 'root override' : 'named input-processor'
 
   return (
-    <section class="border border-zinc-800 rounded p-4 flex flex-col gap-4">
+    <section class="border border-border rounded p-4 flex flex-col gap-4">
       <header class="flex items-baseline justify-between gap-3">
-        <h2 class="text-base font-mono text-white">{title}</h2>
-        <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">{kindBadge}</span>
+        <h2 class="text-base font-mono text-fg">{title}</h2>
+        <span class="text-[10px] uppercase tracking-wider text-fg-subtle font-mono">{kindBadge}</span>
       </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
@@ -174,7 +175,7 @@ function CrossPad({
 }) {
   return (
     <div class="flex flex-col gap-2">
-      <div class="text-xs text-zinc-400 font-mono">Directions</div>
+      <div class="text-xs text-fg-muted font-mono">Directions</div>
       <div class="grid grid-cols-3 grid-rows-3 gap-2 min-h-[280px]">
         {PATTERNS.map((pattern) => {
           const entry = block.entries.find((e) => e.pattern === pattern)
@@ -207,7 +208,7 @@ function CrossPad({
             />
           )
         })}
-        <div class="col-start-2 row-start-2 flex items-center justify-center text-zinc-600 text-xs font-mono select-none pointer-events-none">
+        <div class="col-start-2 row-start-2 flex items-center justify-center text-fg-subtle text-xs font-mono select-none pointer-events-none">
           <div class="flex flex-col items-center gap-1">
             <span class="text-2xl leading-none">◎</span>
             <span>gesture</span>
@@ -238,7 +239,7 @@ function DirectionSlot({
     return (
       <button
         type="button"
-        class={`${meta.slotClass} border border-dashed border-zinc-700 rounded flex flex-col items-center justify-center gap-1 text-zinc-500 hover:border-blue-500 hover:text-blue-400 transition`}
+        class={`${meta.slotClass} border border-dashed border-border-strong rounded flex flex-col items-center justify-center gap-1 text-fg-subtle hover:border-accent hover:text-accent transition`}
         onClick={onCreate}
       >
         <span class="text-xl leading-none">{meta.icon}</span>
@@ -249,35 +250,33 @@ function DirectionSlot({
 
   return (
     <div
-      class={`${meta.slotClass} border border-zinc-800 rounded p-2 flex flex-col gap-1 bg-[#141414]`}
+      class={`${meta.slotClass} border border-border rounded p-2 flex flex-col gap-1 bg-surface-2`}
     >
       <div class="flex items-center justify-between gap-1">
-        <span class="text-sm font-mono text-zinc-300 flex items-center gap-1">
-          <span class="text-blue-400">{meta.icon}</span>
-          <span class="text-[10px] uppercase tracking-wider text-zinc-500">{pattern}</span>
+        <span class="text-sm font-mono text-fg-muted flex items-center gap-1">
+          <span class="text-accent">{meta.icon}</span>
+          <span class="text-[10px] uppercase tracking-wider text-fg-subtle">{pattern}</span>
         </span>
         <button
           type="button"
-          class="text-red-400 hover:text-red-300 text-xs font-mono leading-none"
+          class="text-danger hover:text-red-300 text-xs font-mono leading-none"
           onClick={onRemove}
           title="Remove this direction"
         >
           ×
         </button>
       </div>
-      <input
-        type="text"
-        class={`w-full bg-[#1a1a1a] border rounded px-2 py-1 text-white text-xs font-mono ${
-          entry.name.trim() === '' ? 'border-red-500' : 'border-zinc-700'
-        }`}
+      <CommittingTextInput
+        class="w-full text-xs font-mono"
+        invalid={entry.name.trim() === ''}
         value={entry.name}
-        onInput={(e: Event) => onNameChange((e.target as HTMLInputElement).value)}
+        onCommit={(v) => onNameChange(v)}
         placeholder="entry name (required)"
         title={entry.name.trim() === '' ? 'Entry name is required — an empty name produces invalid DTS.' : undefined}
       />
       <button
         type="button"
-        class="w-full text-left bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-xs font-mono text-zinc-200 hover:border-blue-500 hover:bg-zinc-800"
+        class="w-full text-left bg-surface-3 border border-border-strong rounded px-2 py-1 text-xs font-mono text-fg hover:border-accent hover:bg-surface-4"
         onClick={onEditBinding}
         title="Edit binding"
       >
@@ -300,7 +299,7 @@ function PropsPanel({
 
   return (
     <div class="flex flex-col gap-3">
-      <div class="text-xs text-zinc-400 font-mono">Properties</div>
+      <div class="text-xs text-fg-muted font-mono">Properties</div>
 
       <div class="flex flex-col gap-2">
         {NUMBER_PROP_KEYS.map((key) => {
@@ -308,38 +307,34 @@ function PropsPanel({
           const raw = findProp(block, key)?.value
           const current = parseIntValue(raw)
           return (
-            <label key={key} class="flex flex-col gap-1 text-xs font-mono text-zinc-400">
+            <label key={key} class="flex flex-col gap-1 text-xs font-mono text-fg-muted">
               <span class="flex justify-between">
                 <span>{meta.label}</span>
-                <span class="text-zinc-600">{meta.unit}</span>
+                <span class="text-fg-subtle">{meta.unit}</span>
               </span>
-              <input
+              <CommittingTextInput
                 type="number"
-                class="bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white"
-                value={current}
+                value={current === '' ? '' : String(current)}
                 placeholder="(default)"
                 min={0}
-                onInput={(e: Event) => {
-                  const val = (e.target as HTMLInputElement).value.trim()
-                  if (val === '') {
-                    onChange(setPropValue(block, key, null))
-                  } else {
-                    onChange(setPropValue(block, key, `<${val}>`))
-                  }
+                onCommit={(raw) => {
+                  const val = raw.trim()
+                  if (val === '') onChange(setPropValue(block, key, null))
+                  else onChange(setPropValue(block, key, `<${val}>`))
                 }}
               />
-              <span class="text-[10px] text-zinc-600 leading-tight">{meta.hint}</span>
+              <span class="text-[10px] text-fg-subtle leading-tight">{meta.hint}</span>
             </label>
           )
         })}
       </div>
 
-      <div class="flex flex-col gap-2 border-t border-zinc-800 pt-3">
+      <div class="flex flex-col gap-2 border-t border-border pt-3">
         {BOOLEAN_PROP_KEYS.map((key) => {
           const meta = BOOLEAN_PROP_LABELS[key]
           const on = findProp(block, key) !== undefined
           return (
-            <label key={key} class="flex items-start gap-2 text-xs font-mono text-zinc-300 cursor-pointer">
+            <label key={key} class="flex items-start gap-2 text-xs font-mono text-fg-muted cursor-pointer">
               <input
                 type="checkbox"
                 class="mt-[2px]"
@@ -351,7 +346,7 @@ function PropsPanel({
               />
               <span class="flex flex-col leading-tight">
                 <span>{meta.label}</span>
-                <span class="text-[10px] text-zinc-600">{meta.hint}</span>
+                <span class="text-[10px] text-fg-subtle">{meta.hint}</span>
               </span>
             </label>
           )
@@ -377,13 +372,13 @@ function StructuralProps({ block }: { block: MouseGestureBlock }) {
   if (shown.length === 0) return null
 
   return (
-    <div class="border-t border-zinc-800 pt-3">
-      <div class="text-[10px] text-zinc-500 font-mono mb-1 uppercase tracking-wider">Structural</div>
+    <div class="border-t border-border pt-3">
+      <div class="text-[10px] text-fg-subtle font-mono mb-1 uppercase tracking-wider">Structural</div>
       <div class="flex flex-col gap-1">
         {shown.map(({ key, prop }) => (
           <div key={key} class="flex justify-between items-center gap-2 text-xs font-mono">
-            <span class="text-zinc-500">{key}</span>
-            <span class="text-zinc-400 truncate" title={prop.value}>
+            <span class="text-fg-subtle">{key}</span>
+            <span class="text-fg-muted truncate" title={prop.value}>
               {prop.value || '(flag)'}
             </span>
           </div>
@@ -405,59 +400,53 @@ function AdvancedProps({
   const [expanded, setExpanded] = useState(advancedProps.length > 0)
 
   return (
-    <div class="border-t border-zinc-800 pt-3">
+    <div class="border-t border-border pt-3">
       <button
         type="button"
-        class="flex items-center gap-2 text-xs text-zinc-400 hover:text-white font-mono"
+        class="flex items-center gap-2 text-xs text-fg-muted hover:text-fg font-mono"
         onClick={() => setExpanded((v) => !v)}
       >
         <span>{expanded ? '▾' : '▸'}</span>
         <span>Advanced properties</span>
         {advancedProps.length > 0 && (
-          <span class="text-[10px] text-zinc-600">({advancedProps.length})</span>
+          <span class="text-[10px] text-fg-subtle">({advancedProps.length})</span>
         )}
       </button>
 
       {expanded && (
         <div class="flex flex-col gap-2 mt-2">
           {advancedProps.length === 0 && (
-            <div class="text-[10px] text-zinc-600 font-mono">
+            <div class="text-[10px] text-fg-subtle font-mono">
               No custom properties. Use this for less-common DT properties.
             </div>
           )}
           {advancedProps.map(({ prop, index }) => (
             <div key={index} class="flex gap-2 text-xs">
-              <input
-                type="text"
-                class="flex-1 bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+              <CommittingTextInput
+                class="flex-1 font-mono"
                 value={prop.name}
                 placeholder="name"
-                onInput={(e: Event) =>
+                onCommit={(name) =>
                   onChange({
                     ...block,
-                    props: block.props.map((q, i) =>
-                      i === index ? { ...q, name: (e.target as HTMLInputElement).value } : q,
-                    ),
+                    props: block.props.map((q, i) => (i === index ? { ...q, name } : q)),
                   })
                 }
               />
-              <input
-                type="text"
-                class="flex-1 bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+              <CommittingTextInput
+                class="flex-1 font-mono"
                 value={prop.value}
                 placeholder="value (bare = flag)"
-                onInput={(e: Event) =>
+                onCommit={(value) =>
                   onChange({
                     ...block,
-                    props: block.props.map((q, i) =>
-                      i === index ? { ...q, value: (e.target as HTMLInputElement).value } : q,
-                    ),
+                    props: block.props.map((q, i) => (i === index ? { ...q, value } : q)),
                   })
                 }
               />
               <button
                 type="button"
-                class="text-red-400 hover:text-red-300 text-xs font-mono px-1"
+                class="text-danger hover:text-red-300 text-xs font-mono px-1"
                 onClick={() =>
                   onChange({
                     ...block,
@@ -472,7 +461,7 @@ function AdvancedProps({
           ))}
           <button
             type="button"
-            class="self-start text-xs text-blue-400 hover:text-blue-300 font-mono"
+            class="self-start text-xs text-accent hover:text-blue-300 font-mono"
             onClick={() =>
               onChange({
                 ...block,

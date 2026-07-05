@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'hono/jsx'
+import { Button } from '../../components/ui/button'
+import { Dialog } from '../../components/ui/dialog'
+import { useToast } from '../../components/ui/toast'
 import { useEditor } from '../../lib/editor-state/context'
 import { fetchPreview, saveKeymap } from '../../lib/editor-state/io'
 import type { LintResult } from '../../lib/keymap-dt/lint'
@@ -14,17 +17,25 @@ import {
   serializeRootBehavior,
 } from '../../lib/keymap-dt/serialize'
 
+type Conflict = {
+  currentText: string
+  currentMtimeMs: number
+}
+
 export function SaveDialog({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useEditor()
+  const toast = useToast()
   const [preview, setPreview] = useState<{ diff: string; lint: LintResult } | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [conflictMessage, setConflictMessage] = useState<string | null>(null)
+  const [conflict, setConflict] = useState<Conflict | null>(null)
 
   const candidateText = buildCandidateText(state.baselineSource, state.draft)
 
   useEffect(() => {
     let cancelled = false
+    setPreview(null)
+    setPreviewError(null)
     fetchPreview(candidateText)
       .then((r) => {
         if (cancelled) return
@@ -39,12 +50,16 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
     }
   }, [candidateText])
 
-  const onConfirm = async () => {
+  const doSave = async (runTeardown: () => void) => {
     setSaving(true)
     try {
       const res = await saveKeymap(candidateText, state.baselineMtimeMs)
       if (res.ok) {
         const parsed = parseKeymap(candidateText)
+        // Run Dialog teardown BEFORE the dispatch that unmounts us — otherwise
+        // ModalStack / scroll lock leak (hono/jsx does not fire useEffect
+        // cleanup on conditional unmount).
+        runTeardown()
         dispatch({
           type: 'SAVE_COMMIT',
           source: candidateText,
@@ -58,87 +73,134 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
             rootBehaviors: parsed.rootBehaviors,
           },
         })
+        toast.push({ tone: 'success', message: 'Keymap saved.' })
         onClose()
       } else {
-        setConflictMessage(
-          'Remote file changed since you started editing. Click "Reload" to discard local edits and fetch the latest, or "Cancel" to keep editing.',
-        )
+        setConflict({ currentText: res.currentText, currentMtimeMs: res.currentMtimeMs })
       }
+    } catch (err) {
+      toast.push({
+        tone: 'danger',
+        message: 'Save failed',
+        detail: (err as Error).message,
+        durationMs: 8000,
+      })
     } finally {
       setSaving(false)
     }
   }
 
-  const canSave = preview?.lint.ok === true && !saving && !conflictMessage
+  const doReloadFromConflict = (runTeardown: () => void) => {
+    if (!conflict) return
+    try {
+      const parsed = parseKeymap(conflict.currentText)
+      runTeardown()
+      dispatch({
+        type: 'LOAD',
+        source: conflict.currentText,
+        mtimeMs: conflict.currentMtimeMs,
+        draft: {
+          layers: parsed.layers,
+          combos: parsed.combos,
+          macros: parsed.macros,
+          behaviors: parsed.behaviors,
+          mouseGestures: parsed.mouseGestures,
+          rootBehaviors: parsed.rootBehaviors,
+        },
+      })
+      toast.push({
+        tone: 'warning',
+        message: 'Reloaded from disk.',
+        detail: 'Local edits were discarded to match the latest file.',
+      })
+      onClose()
+    } catch (err) {
+      toast.push({
+        tone: 'danger',
+        message: 'Reload failed',
+        detail: (err as Error).message,
+        durationMs: 8000,
+      })
+    }
+  }
+
+  const canSave = preview?.lint.ok === true && !saving && !conflict
 
   return (
-    <div class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={onClose}>
-      <div
-        class="bg-[#121212] border border-zinc-700 rounded-lg w-[90vw] max-w-5xl max-h-[85vh] overflow-auto p-6 font-mono"
-        onClick={(e: Event) => e.stopPropagation()}
-      >
-        <h2 class="text-base text-white mb-4">Save keymap</h2>
-
-        {previewError && (
-          <div class="text-red-400 mb-3 text-sm">Preview error: {previewError}</div>
-        )}
-
-        {preview && (
-          <>
-            <div class="mb-4">
-              <div class="text-xs text-zinc-400 mb-1">Lint</div>
-              {preview.lint.errors.length === 0 ? (
-                <div class="text-emerald-400 text-sm">No errors.</div>
-              ) : (
-                <ul class="text-red-400 text-sm">
-                  {preview.lint.errors.map((e, i) => (
-                    <li key={i}>{e.message}</li>
-                  ))}
-                </ul>
-              )}
-              {preview.lint.warnings.length > 0 && (
-                <ul class="text-amber-400 text-xs mt-1">
-                  {preview.lint.warnings.map((w, i) => (
-                    <li key={i}>{w.message}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div>
-              <div class="text-xs text-zinc-400 mb-1">Diff preview</div>
-              <pre class="bg-[#0a0a0a] border border-zinc-800 p-3 text-xs overflow-auto max-h-[40vh] whitespace-pre">
-                {preview.diff}
-              </pre>
-            </div>
-          </>
-        )}
-
-        {conflictMessage && (
-          <div class="text-amber-400 text-sm mt-3 border border-amber-700 rounded p-2">
-            {conflictMessage}
-          </div>
-        )}
-
-        <div class="flex justify-end gap-2 mt-6">
-          <button
-            type="button"
-            class="px-4 py-1 bg-zinc-700 text-white rounded hover:bg-zinc-600"
-            onClick={onClose}
-          >
+    <Dialog
+      open
+      onClose={onClose}
+      size="xl"
+      title="Save keymap"
+      description="Review the diff, then confirm to atomically write the file."
+      footer={({ close, runTeardown }) => (
+        <>
+          <Button variant="subtle" onClick={close}>
             Cancel
-          </button>
-          <button
-            type="button"
-            class="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40"
-            disabled={!canSave}
-            onClick={onConfirm}
-          >
-            {saving ? 'Saving…' : 'Confirm save'}
-          </button>
+          </Button>
+          {conflict ? (
+            <Button variant="primary" onClick={() => doReloadFromConflict(runTeardown)}>
+              Reload from disk
+            </Button>
+          ) : (
+            <Button variant="primary" disabled={!canSave} onClick={() => doSave(runTeardown)}>
+              {saving ? 'Saving…' : 'Confirm save'}
+            </Button>
+          )}
+        </>
+      )}
+    >
+      {previewError && (
+        <div class="text-sm text-danger border border-danger/40 bg-danger-soft rounded-md px-3 py-2">
+          Preview error: {previewError}
         </div>
-      </div>
-    </div>
+      )}
+
+      {preview && (
+        <>
+          <section class="flex flex-col gap-1.5">
+            <div class="text-xs uppercase tracking-wide text-fg-subtle">Lint</div>
+            {preview.lint.errors.length === 0 ? (
+              <div class="text-sm text-success">No errors.</div>
+            ) : (
+              <ul class="text-sm text-danger list-disc pl-5">
+                {preview.lint.errors.map((e, i) => (
+                  <li key={i}>{e.message}</li>
+                ))}
+              </ul>
+            )}
+            {preview.lint.warnings.length > 0 && (
+              <ul class="text-xs text-warning list-disc pl-5">
+                {preview.lint.warnings.map((w, i) => (
+                  <li key={i}>{w.message}</li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section class="flex flex-col gap-1.5">
+            <div class="text-xs uppercase tracking-wide text-fg-subtle">Diff preview</div>
+            <pre class="bg-surface-0 border border-border-subtle rounded-md p-3 text-xs font-mono overflow-auto max-h-[46vh] whitespace-pre m-0">
+              {preview.diff || '(no textual changes)'}
+            </pre>
+          </section>
+        </>
+      )}
+
+      {conflict && (
+        <div
+          class="border border-warning/40 bg-warning-soft rounded-md px-3 py-2 text-sm"
+          role="alert"
+        >
+          <div class="font-medium">Remote file changed</div>
+          <p class="text-xs text-fg-muted mt-0.5">
+            The keymap on disk was modified since you started editing. Click{' '}
+            <span class="text-warning font-medium">Reload from disk</span> to discard local edits and
+            fetch the latest, or Cancel to keep editing (you can copy your work aside first).
+          </p>
+        </div>
+      )}
+    </Dialog>
   )
 }
 

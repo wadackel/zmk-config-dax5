@@ -58,7 +58,7 @@ export function BtSpecialForm({ tokens, onChange }: Props) {
 
   return (
     <div class="mb-4">
-      <label class="block mb-2 text-zinc-400 text-xs">Bluetooth action</label>
+      <label class="block mb-2 text-fg-muted text-xs">Bluetooth action</label>
       {/*
         hono/jsx/dom applies `select.value` before <option> children are
         appended, which strands non-default selections at selectedIndex 0.
@@ -66,7 +66,7 @@ export function BtSpecialForm({ tokens, onChange }: Props) {
         per-option DOM creation and survives the append order.
       */}
       <select
-        class="w-full bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white"
+        class="w-full bg-surface-3 border border-border-strong rounded px-2 py-1 text-fg"
         onChange={(e: Event) => {
           const v = (e.target as HTMLSelectElement).value as OptionValue
           onChange(btOptionToTokens(v))

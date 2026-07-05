@@ -142,7 +142,7 @@ export function BehaviorCombobox({ value, onChange }: Props) {
       <input
         ref={inputRef}
         type="text"
-        class="w-full bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+        class="w-full bg-surface-3 border border-border-strong rounded px-2 py-1 text-fg font-mono"
         value={open ? query : current ? `${current.token} — ${current.label}` : value}
         placeholder="search behaviour (e.g. tap, layer, mod)"
         onFocus={(e: Event) => {
@@ -163,10 +163,10 @@ export function BehaviorCombobox({ value, onChange }: Props) {
         <div
           ref={listRef}
           role="listbox"
-          class="mt-1 max-h-[24rem] overflow-auto bg-[#0f0f0f] border border-zinc-700 rounded shadow-lg"
+          class="mt-1 max-h-[24rem] overflow-auto bg-surface-1 border border-border-strong rounded shadow-lg"
         >
           {rows.length === 0 && (
-            <div class="px-3 py-2 text-zinc-500 text-xs italic">No matching behaviour</div>
+            <div class="px-3 py-2 text-fg-subtle text-xs italic">No matching behaviour</div>
           )}
           {rows.map((row, i) => {
             if (row.kind === 'header') {
@@ -174,7 +174,7 @@ export function BehaviorCombobox({ value, onChange }: Props) {
                 <div
                   key={`h-${row.group}`}
                   data-row={i}
-                  class="px-3 py-1 text-[10px] uppercase text-zinc-500 bg-[#161616] border-b border-zinc-800"
+                  class="px-3 py-1 text-[10px] uppercase text-fg-subtle bg-surface-2 border-b border-border"
                 >
                   {GROUP_LABEL[row.group]}
                 </div>
@@ -186,18 +186,18 @@ export function BehaviorCombobox({ value, onChange }: Props) {
                 key={`i-${row.entry.token}`}
                 type="button"
                 role="option"
-                aria-selected={isActive}
+                aria-selected={isActive ? 'true' : 'false'}
                 data-row={i}
                 data-token={row.entry.token}
                 class={`flex items-center justify-between w-full text-left px-3 py-1 text-sm font-mono ${
-                  isActive ? 'bg-blue-700 text-white' : 'text-zinc-200 hover:bg-zinc-800'
+                  isActive ? 'bg-blue-700 text-fg' : 'text-fg hover:bg-surface-4'
                 }`}
                 onMouseEnter={() => setActiveIdx(i)}
                 onMouseDown={(e: Event) => e.preventDefault()}
                 onClick={() => commitRow(i)}
               >
                 <span>{row.entry.token}</span>
-                <span class="text-zinc-500 text-xs">{row.entry.label}</span>
+                <span class="text-fg-subtle text-xs">{row.entry.label}</span>
               </button>
             )
           })}

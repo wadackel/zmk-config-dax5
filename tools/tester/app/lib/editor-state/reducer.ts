@@ -362,22 +362,32 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
     case 'UNDO': {
       if (state.past.length === 0) return state
       const prev = state.past[state.past.length - 1]
+      // Clamp activeLayerIdx to the restored layers' bounds — UNDOing an
+      // ADD_LAYER (or a chain that shortens layers) would otherwise leave
+      // activeLayerIdx pointing past the array, which crashes LayersTab's
+      // `activeLayer.bindings[k.index]` and manifests as "Undo does
+      // nothing" because hono/jsx silently rejects the failed render.
+      const maxIdx = Math.max(0, prev.layers.length - 1)
       return {
         ...state,
         draft: prev,
         past: state.past.slice(0, -1),
         future: [...state.future, state.draft],
+        activeLayerIdx: Math.min(state.activeLayerIdx, maxIdx),
       }
     }
 
     case 'REDO': {
       if (state.future.length === 0) return state
       const next = state.future[state.future.length - 1]
+      // Same clamp as UNDO for the symmetric REDOing-a-REMOVE_LAYER case.
+      const maxIdx = Math.max(0, next.layers.length - 1)
       return {
         ...state,
         draft: next,
         past: [...state.past, state.draft],
         future: state.future.slice(0, -1),
+        activeLayerIdx: Math.min(state.activeLayerIdx, maxIdx),
       }
     }
   }

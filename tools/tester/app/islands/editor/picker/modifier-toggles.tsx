@@ -35,7 +35,7 @@ export function ModifierToggles({ active, onChange }: Props) {
   return (
     <div class="mb-2">
       <div class="flex items-center gap-1 mb-1">
-        <span class="text-[10px] text-zinc-500 mr-1">Modifier</span>
+        <span class="text-[10px] text-fg-subtle mr-1">Modifier</span>
         {LEFT_MODS.map((m) => (
           <ModButton
             key={m.wrap}
@@ -47,7 +47,7 @@ export function ModifierToggles({ active, onChange }: Props) {
         ))}
         <button
           type="button"
-          class="ml-2 text-[10px] text-zinc-500 hover:text-zinc-300"
+          class="ml-2 text-[10px] text-fg-subtle hover:text-fg-muted"
           onClick={() => setShowRight((v) => !v)}
         >
           {showRight ? '− R-side' : '+ R-side'}
@@ -85,12 +85,12 @@ function ModButton({
   return (
     <button
       type="button"
-      aria-pressed={active}
+      aria-pressed={active ? 'true' : 'false'}
       data-modwrap={wrap}
       class={`px-2 py-0.5 rounded text-[11px] border font-mono ${
         active
-          ? 'bg-blue-600 text-white border-blue-400'
-          : 'bg-[#1a1a1a] text-zinc-400 border-zinc-700 hover:border-zinc-500'
+          ? 'bg-blue-600 text-fg border-blue-400'
+          : 'bg-surface-3 text-fg-muted border-border-strong hover:border-zinc-500'
       }`}
       onClick={onToggle}
     >

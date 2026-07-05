@@ -40,12 +40,12 @@ export function ArgumentControl({
   autoFocus,
 }: Props) {
   const wrapperClass = `flex flex-col gap-1 p-2 rounded border ${
-    isActive ? 'border-blue-500' : 'border-zinc-800'
+    isActive ? 'border-blue-500' : 'border-border'
   }`
 
   return (
     <div class={wrapperClass} onFocusin={onFocus}>
-      <span class="text-[10px] text-zinc-500">{label}</span>
+      <span class="text-[10px] text-fg-subtle">{label}</span>
       <ArgumentInput
         argType={argType}
         value={value}
@@ -117,7 +117,7 @@ function ArgumentInput({
       return (
         <input
           type="text"
-          class="w-full bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+          class="w-full bg-surface-3 border border-border-strong rounded px-2 py-1 text-fg font-mono"
           value={value}
           autoFocus={autoFocus}
           onInput={(e: Event) => onChange((e.target as HTMLInputElement).value)}
@@ -159,7 +159,7 @@ function LayerSelect({
 
   return (
     <select
-      class="w-full bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+      class="w-full bg-surface-3 border border-border-strong rounded px-2 py-1 text-fg font-mono"
       autoFocus={autoFocus}
       onChange={(e: Event) => onChange((e.target as HTMLSelectElement).value)}
     >
@@ -198,7 +198,7 @@ function NativeSelect({
   // before children mount. Mark the target <option> as `selected` instead.
   return (
     <select
-      class="w-full bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white font-mono"
+      class="w-full bg-surface-3 border border-border-strong rounded px-2 py-1 text-fg font-mono"
       autoFocus={autoFocus}
       onChange={(e: Event) => onChange((e.target as HTMLSelectElement).value)}
     >

@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'hono/jsx'
+import { KeyCap } from '../components/ui/key-cap'
+import type { KeyCapState } from '../components/ui/key-cap'
 import { KEY_OFFSET, KEY_SIZE, RIGHT_X_OFFSET, UNIT } from '../components/keyboard-grid'
 import { KEYS, ENCODERS } from '../lib/layout'
 import type { KeyDef, EncoderDef } from '../lib/layout'
@@ -15,66 +17,43 @@ const LEFT_CONTAINER_H = (3 + 1) * UNIT    // 256
 const RIGHT_CONTAINER_W = (15 - 8.5 + 1) * UNIT // 480
 const RIGHT_CONTAINER_H = (3 + 1) * UNIT   // 256
 
-function statusClasses(status: KeyState['status'], isPressed: boolean): string {
-  if (isPressed) {
-    return 'bg-blue-500 border-blue-400 text-white shadow-[0_0_12px_rgba(59,130,246,0.6)] scale-95'
-  }
+function statusToState(status: KeyState['status'], isPressed: boolean, isUntestable: boolean): KeyCapState {
+  if (isUntestable) return 'tester-untestable'
+  if (isPressed) return 'tester-pressed'
   switch (status) {
     case 'tested':
-      return 'bg-emerald-700 border-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+      return 'tester-tested'
     case 'chattering':
-      return 'bg-red-700 border-red-500 text-white shadow-[0_0_12px_rgba(220,38,38,0.6)]'
-    case 'untested':
+      return 'tester-error'
     default:
-      return 'bg-[#1a1a1a] border-[#2a2a2a] text-zinc-400'
+      return 'tester-idle'
   }
 }
 
-function KeyCap({ keyDef, keyState, side }: { keyDef: KeyDef; keyState: KeyState | undefined; side: 'left' | 'right' }) {
+function TesterKey({ keyDef, keyState, side }: { keyDef: KeyDef; keyState: KeyState | undefined; side: 'left' | 'right' }) {
   const status = keyState?.status ?? 'untested'
   const isPressed = keyState?.isPressed ?? false
   const chatterCount = keyState?.chatterCount ?? 0
-
   const isUntestable = keyDef.testability === 'untestable'
 
   const x = side === 'right' ? keyDef.x - RIGHT_X_OFFSET : keyDef.x
   const left = x * UNIT + KEY_OFFSET
   const top = keyDef.y * UNIT + KEY_OFFSET
 
-  if (isUntestable) {
-    return (
-      <div
-        class="absolute flex items-center justify-center rounded-md border text-[11px] font-mono select-none bg-[#111] border-[#1a1a1a] text-zinc-700"
-        style={{
-          width: `${KEY_SIZE}px`,
-          height: `${KEY_SIZE}px`,
-          left: `${left}px`,
-          top: `${top}px`,
-          backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 8px)',
-        }}
-      >
-        {keyDef.label}
-      </div>
-    )
-  }
-
   return (
-    <div
-      class={`absolute flex items-center justify-center rounded-md border text-[11px] font-mono select-none transition-all duration-75 ${statusClasses(status, isPressed)}`}
-      style={{
-        width: `${KEY_SIZE}px`,
-        height: `${KEY_SIZE}px`,
-        left: `${left}px`,
-        top: `${top}px`,
-      }}
+    <KeyCap
+      state={statusToState(status, isPressed, isUntestable)}
+      asButton={false}
+      class="absolute text-[11px]"
+      style={`width:${KEY_SIZE}px;height:${KEY_SIZE}px;left:${left}px;top:${top}px;`}
     >
-      {keyDef.label}
+      <span>{keyDef.label}</span>
       {chatterCount > 0 && (
-        <span class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-600 text-white text-[9px] font-bold leading-none px-1">
+        <span class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-danger text-danger-fg text-[9px] font-bold leading-none px-1">
           {chatterCount}
         </span>
       )}
-    </div>
+    </KeyCap>
   )
 }
 
@@ -99,7 +78,7 @@ function EncoderWidget({
   } else if (isTested) {
     borderClass = 'border-emerald-500'
   } else {
-    borderClass = 'border-[#2a2a2a]'
+    borderClass = 'border-border'
   }
 
   return (
@@ -107,7 +86,7 @@ function EncoderWidget({
       <button
         type="button"
         data-encoder={encoder.id}
-        class={`rounded-full bg-[#1a1a1a] border-2 flex flex-col items-center justify-center font-mono text-[10px] text-zinc-300 transition-all duration-150 cursor-pointer hover:border-zinc-500 ${borderClass}`}
+        class={`rounded-full bg-surface-3 border-2 flex flex-col items-center justify-center font-mono text-[10px] text-fg-muted transition-all duration-150 cursor-pointer hover:border-border-strong ${borderClass}`}
         style={{ width: `${ENCODER_SIZE}px`, height: `${ENCODER_SIZE}px` }}
         onMouseDown={(e: MouseEvent) => {
           e.stopPropagation()
@@ -115,11 +94,11 @@ function EncoderWidget({
         }}
       >
         <span>{encoder.label}</span>
-        <span class="text-[9px] text-zinc-500 mt-0.5">
+        <span class="text-[9px] text-fg-subtle mt-0.5">
           &#x21bb; {cw} / &#x21ba; {ccw}
         </span>
       </button>
-      <span class="text-[10px] text-zinc-600 font-mono">
+      <span class="text-[10px] text-fg-subtle font-mono">
         {isFocused ? 'selected' : 'click to select'}
       </span>
     </div>
@@ -131,13 +110,13 @@ function EventLog({ entries }: { entries: EventLogEntry[] }) {
 
   return (
     <div class="w-full">
-      <div class="text-xs font-mono text-zinc-500 mb-1">Event Log</div>
+      <div class="text-xs font-mono text-fg-subtle mb-1">Event Log</div>
       <div
         ref={logRef}
-        class="h-48 overflow-y-auto bg-[#0d0d0d] border border-[#1e1e1e] rounded-md p-2 font-mono text-xs"
+        class="h-48 overflow-y-auto bg-surface-1 border border-border rounded-md p-2 font-mono text-xs"
       >
         {entries.length === 0 ? (
-          <div class="text-zinc-600 text-center mt-8">
+          <div class="text-fg-subtle text-center mt-8">
             Waiting for input...
           </div>
         ) : (
@@ -150,9 +129,9 @@ function EventLog({ entries }: { entries: EventLogEntry[] }) {
               fractionalSecondDigits: 3,
             } as Intl.DateTimeFormatOptions)
 
-            let typeColor = 'text-zinc-300'
+            let typeColor = 'text-fg-muted'
             if (entry.type === 'keyup' || entry.type === 'mouseup') {
-              typeColor = 'text-zinc-500'
+              typeColor = 'text-fg-subtle'
             }
             if (entry.isChattering) {
               typeColor = 'text-red-400'
@@ -164,7 +143,7 @@ function EventLog({ entries }: { entries: EventLogEntry[] }) {
 
             return (
               <div key={entry.id} class={`flex gap-3 py-0.5 ${typeColor}`}>
-                <span class="text-zinc-600 shrink-0">{time}</span>
+                <span class="text-fg-subtle shrink-0">{time}</span>
                 <span class="w-20 shrink-0">{entry.type}</span>
                 <span class="w-24 shrink-0">{entry.label}</span>
                 <span>{detail}</span>
@@ -451,16 +430,16 @@ export default function KeyboardTester() {
   }, [])
 
   return (
-    <div class="min-h-screen bg-[#0a0a0a] text-white p-6 flex flex-col items-center gap-6 select-none">
+    <div class="min-h-screen bg-surface-0 text-fg p-6 flex flex-col items-center gap-6 select-none">
       {/* Header */}
       <div class="w-full max-w-[1040px] flex flex-col gap-3">
         <div class="flex items-center justify-between">
-          <h1 class="text-lg font-mono font-bold text-zinc-200">dax5 Key Tester</h1>
+          <h1 class="text-lg font-mono font-bold text-fg">dax5 Key Tester</h1>
           <button
             type="button"
             onMouseDown={(e: MouseEvent) => e.stopPropagation()}
             onClick={handleReset}
-            class="px-4 py-2 text-sm font-mono bg-[#1a1a1a] border border-[#2a2a2a] text-zinc-400 rounded hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+            class="px-4 py-2 text-sm font-mono bg-surface-3 border border-border text-fg-muted rounded hover:border-border-strong hover:text-fg transition-colors"
           >
             Reset
           </button>
@@ -468,13 +447,13 @@ export default function KeyboardTester() {
 
         {/* Progress Bar */}
         <div class="flex items-center gap-3">
-          <div class="flex-1 h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+          <div class="flex-1 h-2 bg-surface-3 rounded-full overflow-hidden">
             <div
               class="h-full bg-emerald-500 rounded-full transition-all duration-200"
               style={{ width: `${percent}%` }}
             />
           </div>
-          <span class="text-xs font-mono text-zinc-400 shrink-0">
+          <span class="text-xs font-mono text-fg-muted shrink-0">
             {tested}/{total} ({Math.round(percent)}%)
           </span>
         </div>
@@ -495,7 +474,7 @@ export default function KeyboardTester() {
             style={{ width: `${LEFT_CONTAINER_W}px`, height: `${LEFT_CONTAINER_H}px` }}
           >
             {leftKeys.map((keyDef) => (
-              <KeyCap
+              <TesterKey
                 key={keyDef.index}
                 keyDef={keyDef}
                 keyState={state.keys.get(keyDef.index)}
@@ -518,7 +497,7 @@ export default function KeyboardTester() {
             style={{ width: `${RIGHT_CONTAINER_W}px`, height: `${RIGHT_CONTAINER_H}px` }}
           >
             {rightKeys.map((keyDef) => (
-              <KeyCap
+              <TesterKey
                 key={keyDef.index}
                 keyDef={keyDef}
                 keyState={state.keys.get(keyDef.index)}

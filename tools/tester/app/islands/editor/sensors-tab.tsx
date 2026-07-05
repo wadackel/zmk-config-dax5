@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'hono/jsx'
+import { Button } from '../../components/ui/button'
+import { Dialog } from '../../components/ui/dialog'
+import { CommittingTextInput } from '../../components/ui/field'
 import { useEditor } from '../../lib/editor-state/context'
 import type { BindingChain, LayerData } from '../../lib/keymap-dt/types'
 import {
@@ -116,10 +119,10 @@ function TuningSummaryCard({
   const eventsPerRotation = SHIELD_TRIGGERS_PER_ROTATION * (scrlVal ?? 0)
 
   return (
-    <section class="border border-zinc-800 rounded p-4 flex flex-col gap-4">
+    <section class="border border-border rounded p-4 flex flex-col gap-4">
       <div class="flex items-baseline justify-between">
         <h2 class="text-base font-mono">Tuning summary</h2>
-        <span class="text-[10px] text-zinc-500 font-mono">
+        <span class="text-[10px] text-fg-subtle font-mono">
           Values shown here match constraints from CLAUDE.md.
         </span>
       </div>
@@ -134,21 +137,22 @@ function TuningSummaryCard({
           footer="msc event period is 16 ms"
         >
           {encScrollDefined ? (
-            <input
+            <CommittingTextInput
               id="sensors-tap-ms"
               type="number"
               min={0}
-              value={tapMs ?? ''}
-              class="bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 text-white w-24"
-              onInput={(e: Event) => {
-                const v = Number((e.target as HTMLInputElement).value)
+              value={tapMs !== null && tapMs !== undefined ? String(tapMs) : ''}
+              class="w-24"
+              onCommit={(raw) => {
+                if (raw === '') return
+                const v = Number(raw)
                 if (Number.isFinite(v) && v >= 0) onTapMsChange(v)
               }}
               aria-describedby={tapMsHint.level === 'ok' ? undefined : 'sensors-tap-ms-hint'}
-              aria-invalid={tapMsHint.level === 'error'}
+              aria-invalid={tapMsHint.level === 'error' ? 'true' : 'false'}
             />
           ) : (
-            <span class="text-zinc-500 italic">enc_scroll behavior not defined</span>
+            <span class="text-fg-subtle italic">enc_scroll behavior not defined</span>
           )}
         </TuningField>
 
@@ -158,7 +162,7 @@ function TuningSummaryCard({
           hintId="sensors-scrl-val-hint"
           footer="read-only; edit the #define at the top of the keymap"
         >
-          <span class="text-white text-sm">{scrlVal ?? '—'}</span>
+          <span class="text-fg text-sm">{scrlVal ?? '—'}</span>
         </TuningField>
 
         <TuningField
@@ -167,14 +171,14 @@ function TuningSummaryCard({
           hintId="sensors-tpr-hint"
           footer={`defined in boards/shields/dax5/dax5.dtsi (steps=${SHIELD_STEPS})`}
         >
-          <span class="text-white text-sm">{SHIELD_TRIGGERS_PER_ROTATION}</span>
+          <span class="text-fg text-sm">{SHIELD_TRIGGERS_PER_ROTATION}</span>
         </TuningField>
       </div>
 
       {scrlVal !== null && (
-        <div class="text-[11px] text-zinc-400 font-mono border-t border-zinc-800 pt-3">
+        <div class="text-[11px] text-fg-muted font-mono border-t border-border pt-3">
           1 full rotation ≈ {SHIELD_TRIGGERS_PER_ROTATION} events × {scrlVal} value ={' '}
-          <span class="text-zinc-200">{eventsPerRotation}</span> total scroll units
+          <span class="text-fg">{eventsPerRotation}</span> total scroll units
         </div>
       )}
     </section>
@@ -209,12 +213,12 @@ function TuningField({
   const LabelTag: any = labelFor ? 'label' : 'span'
   return (
     <div class="flex flex-col gap-1">
-      <LabelTag class="text-zinc-400" {...(labelFor ? { htmlFor: labelFor } : {})}>
+      <LabelTag class="text-fg-muted" {...(labelFor ? { htmlFor: labelFor } : {})}>
         {label}
       </LabelTag>
       <div>{children}</div>
       <HintBadge hint={hint} id={hintId} live={hintLive} />
-      <span class="text-[10px] text-zinc-600">{footer}</span>
+      <span class="text-[10px] text-fg-subtle">{footer}</span>
     </div>
   )
 }
@@ -280,10 +284,10 @@ function EncoderGrid({
     .filter(({ layer }) => layer.sensorBindings !== null)
 
   return (
-    <section class="border border-zinc-800 rounded p-4 flex flex-col gap-3">
+    <section class="border border-border rounded p-4 flex flex-col gap-3">
       <div class="flex items-baseline justify-between">
         <h2 class="text-base font-mono">Sensor bindings per layer</h2>
-        <span class="text-[10px] text-zinc-500 font-mono">
+        <span class="text-[10px] text-fg-subtle font-mono">
           arg0 = ↺ CCW, arg1 = ↻ CW
         </span>
       </div>
@@ -335,12 +339,12 @@ function LayerRow({
 
   if (!bindings) {
     return (
-      <div class="grid grid-cols-[10rem_1fr_auto] gap-3 items-center border border-zinc-800/40 rounded px-3 py-2">
-        <div class="text-zinc-200 font-mono text-sm">{layer.name}</div>
-        <div class="text-zinc-500 italic text-xs font-mono">no sensor-bindings declared</div>
+      <div class="grid grid-cols-[10rem_1fr_auto] gap-3 items-center border border-border/40 rounded px-3 py-2">
+        <div class="text-fg font-mono text-sm">{layer.name}</div>
+        <div class="text-fg-subtle italic text-xs font-mono">no sensor-bindings declared</div>
         <button
           type="button"
-          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-xs font-mono"
+          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-fg text-xs font-mono"
           onClick={() => onInsert(layerIdx)}
         >
           + Add
@@ -350,8 +354,8 @@ function LayerRow({
   }
 
   return (
-    <div class="grid grid-cols-[10rem_1fr_1fr_auto] gap-3 items-start border border-zinc-800/40 rounded px-3 py-2">
-      <div class="text-zinc-200 font-mono text-sm pt-2">{layer.name}</div>
+    <div class="grid grid-cols-[10rem_1fr_1fr_auto] gap-3 items-start border border-border/40 rounded px-3 py-2">
+      <div class="text-fg font-mono text-sm pt-2">{layer.name}</div>
       {[0, 1].map((encoderIdx) => (
         <EncoderCell
           key={encoderIdx}
@@ -370,7 +374,7 @@ function LayerRow({
         />
         <button
           type="button"
-          class="px-2 py-1 min-h-6 text-xs text-zinc-300 border border-zinc-700 rounded hover:border-blue-500 hover:text-white font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          class="px-2 py-1 min-h-6 text-xs text-fg-muted border border-border-strong rounded hover:border-accent hover:text-fg font-mono"
           onClick={() => onApplyToAll(layerIdx)}
           title="Copy this layer's sensor-bindings to every layer"
           aria-haspopup="dialog"
@@ -379,7 +383,7 @@ function LayerRow({
         </button>
         <button
           type="button"
-          class="px-2 py-1 min-h-6 text-xs text-red-400 border border-zinc-700 rounded hover:border-red-500 hover:text-red-300 font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          class="px-2 py-1 min-h-6 text-xs text-danger border border-border-strong rounded hover:border-red-500 hover:text-red-300 font-mono"
           onClick={() => onRemove(layerIdx)}
           title="Remove sensor-bindings from this layer"
           aria-label="Remove sensor-bindings"
@@ -408,11 +412,11 @@ function EncoderCell({ chain, label, onEdit, onSwap }: EncoderCellProps) {
 
   return (
     <div class="flex flex-col gap-1">
-      <div class="text-[10px] text-zinc-500 font-mono">{label}</div>
+      <div class="text-[10px] text-fg-subtle font-mono">{label}</div>
       <div class="flex items-stretch gap-1">
         <button
           type="button"
-          class="flex-1 text-left bg-[#1a1a1a] border border-zinc-700 rounded px-2 py-1 min-h-6 text-sm font-mono text-zinc-200 hover:border-blue-500 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          class="flex-1 text-left bg-surface-3 border border-border-strong rounded px-2 py-1 min-h-6 text-sm font-mono text-fg hover:border-accent hover:bg-surface-4"
           onClick={onEdit}
           title={rotationTooltip}
           aria-label={`Edit ${label} binding`}
@@ -422,7 +426,7 @@ function EncoderCell({ chain, label, onEdit, onSwap }: EncoderCellProps) {
         </button>
         <button
           type="button"
-          class="px-2 min-w-6 min-h-6 text-zinc-300 border border-zinc-700 rounded hover:border-blue-500 hover:text-white text-sm font-mono disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          class="px-2 min-w-6 min-h-6 text-fg-muted border border-border-strong rounded hover:border-accent hover:text-fg text-sm font-mono disabled:opacity-40 disabled:cursor-not-allowed"
           onClick={onSwap}
           disabled={!canSwap}
           title="Swap CCW / CW arguments"
@@ -431,7 +435,7 @@ function EncoderCell({ chain, label, onEdit, onSwap }: EncoderCellProps) {
           <span aria-hidden="true">⇄</span>
         </button>
       </div>
-      <div class="text-[10px] text-zinc-500 font-mono flex justify-between">
+      <div class="text-[10px] text-fg-subtle font-mono flex justify-between">
         <span>↺ CCW</span>
         <span>↻ CW</span>
       </div>
@@ -455,7 +459,7 @@ function CopyFromMenu({ layerIdx, layerName, candidates, onSelect }: CopyFromMen
   return (
     <>
       <select
-        class="px-2 py-1 min-h-6 text-xs bg-[#1a1a1a] border border-zinc-700 rounded text-zinc-300 font-mono disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        class="px-2 py-1 min-h-6 text-xs bg-surface-3 border border-border-strong rounded text-fg-muted font-mono disabled:opacity-40"
         disabled={disabled}
         value=""
         // Reset target.value after handling so the same source layer can be
@@ -495,7 +499,7 @@ function CopyFromMenu({ layerIdx, layerName, candidates, onSelect }: CopyFromMen
 
 function RotationPreview({ layers }: { layers: LayerData[] }) {
   return (
-    <section class="border border-zinc-800 rounded p-4 flex flex-col gap-3">
+    <section class="border border-border rounded p-4 flex flex-col gap-3">
       <h2 class="text-base font-mono">Rotation preview</h2>
       <div class="flex flex-col gap-3">
         {layers.map((layer) => (
@@ -509,10 +513,10 @@ function RotationPreview({ layers }: { layers: LayerData[] }) {
 function LayerRotationPreview({ layer }: { layer: LayerData }) {
   const bindings = layer.sensorBindings?.perEncoder
   return (
-    <div class="border border-zinc-800/60 rounded px-3 py-2 flex flex-col gap-2">
-      <div class="text-xs text-zinc-300 font-mono">{layer.name}</div>
+    <div class="border border-border/60 rounded px-3 py-2 flex flex-col gap-2">
+      <div class="text-xs text-fg-muted font-mono">{layer.name}</div>
       {!bindings ? (
-        <div class="text-[11px] text-zinc-500 italic font-mono">No sensor-bindings on this layer.</div>
+        <div class="text-[11px] text-fg-subtle italic font-mono">No sensor-bindings on this layer.</div>
       ) : (
         <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
           {[0, 1].map((encoderIdx) => (
@@ -537,25 +541,25 @@ function EncoderRotationCard({
 }) {
   if (!chain) {
     return (
-      <div class="border border-zinc-800/60 rounded px-3 py-2 text-[11px] text-zinc-500 font-mono italic">
+      <div class="border border-border/60 rounded px-3 py-2 text-[11px] text-fg-subtle font-mono italic">
         {label}: undefined
       </div>
     )
   }
   const desc = describeEncoderRotation(chain)
   return (
-    <div class="border border-zinc-800/60 rounded px-3 py-2 text-[11px] font-mono flex flex-col gap-1">
-      <div class="text-zinc-400">{label}</div>
+    <div class="border border-border/60 rounded px-3 py-2 text-[11px] font-mono flex flex-col gap-1">
+      <div class="text-fg-muted">{label}</div>
       {desc ? (
         <>
-          <div class="text-zinc-200">↺ CCW → {desc.ccw}</div>
-          <div class="text-zinc-200">↻ CW → {desc.cw}</div>
-          <div class="text-zinc-500">via {desc.behaviorLabel}</div>
+          <div class="text-fg">↺ CCW → {desc.ccw}</div>
+          <div class="text-fg">↻ CW → {desc.cw}</div>
+          <div class="text-fg-subtle">via {desc.behaviorLabel}</div>
         </>
       ) : (
         <>
-          <div class="text-zinc-200">{chain.tokens.join(' ')}</div>
-          <div class="text-zinc-500">
+          <div class="text-fg">{chain.tokens.join(' ')}</div>
+          <div class="text-fg-subtle">
             via {chain.tokens[0] ?? '<none>'} (unrecognised shape)
           </div>
         </>
@@ -572,86 +576,34 @@ type ConfirmDialogProps = {
 }
 
 function ConfirmDialog({ title, message, onConfirm, onCancel }: ConfirmDialogProps) {
-  const dialogRef = useRef<HTMLDivElement | null>(null)
-  const cancelBtnRef = useRef<HTMLButtonElement | null>(null)
-  const titleId = 'sensors-confirm-title'
-  const messageId = 'sensors-confirm-msg'
-
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    cancelBtnRef.current?.focus()
-    return () => {
-      previousFocus?.focus()
-    }
-  }, [])
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-      return
-    }
-    // Focus trap: cycle Tab/Shift+Tab between the enabled focusables in the
-    // dialog. `:not([disabled])` guards against future disabled buttons being
-    // picked up as trap boundaries — a disabled boundary would silently break
-    // Tab wrapping.
-    if (e.key === 'Tab') {
-      const focusables = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])')
-      if (!focusables || focusables.length === 0) return
-      const first = focusables[0]!
-      const last = focusables[focusables.length - 1]!
-      const active = document.activeElement
-      if (e.shiftKey && active === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && active === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-  }
-
   return (
-    <div
-      class="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 pt-[15vh]"
-      onClick={onCancel}
-    >
-      <div
-        ref={dialogRef}
-        class="bg-[#121212] border border-zinc-700 rounded-lg w-[min(90vw,480px)] p-6 text-sm font-mono flex flex-col gap-4"
-        onClick={(e: Event) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={messageId}
-      >
-        <h3 id={titleId} class="text-zinc-100 text-base m-0">
-          {title}
-        </h3>
-        <div id={messageId} class="text-zinc-300">
-          {message}
-        </div>
-        <div class="flex justify-end gap-2">
-          <button
-            ref={cancelBtnRef}
-            type="button"
-            class="px-3 py-1 min-h-6 bg-zinc-700 text-white rounded hover:bg-zinc-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-            onClick={onCancel}
-          >
+    <Dialog
+      open
+      onClose={onCancel}
+      size="sm"
+      title={title}
+      description={message}
+      hint="esc to cancel"
+      footer={({ close, runTeardown }) => (
+        <>
+          <Button variant="subtle" onClick={close}>
             Cancel
-          </button>
-          <button
-            type="button"
-            class="px-3 py-1 min-h-6 bg-blue-600 text-white rounded hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-            onClick={onConfirm}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              runTeardown()
+              onConfirm()
+            }}
           >
             Apply
-          </button>
-        </div>
-        <div class="text-[10px] text-zinc-500 text-right">esc to cancel</div>
-      </div>
-    </div>
+          </Button>
+        </>
+      )}
+    >
+      {/* Dialog description already renders the message; no extra body needed. */}
+      <span class="sr-only">{message}</span>
+    </Dialog>
   )
 }
 

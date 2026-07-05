@@ -11,7 +11,7 @@ export default jsxRenderer(({ children }) => {
         <Link href="/app/style.css" rel="stylesheet" />
         <Script src="/app/client.ts" async />
       </head>
-      <body class="bg-[#0a0a0a] text-white min-h-screen">
+      <body class="bg-surface-0 text-fg min-h-screen">
         {children}
       </body>
     </html>

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'hono/jsx'
+import { Button } from '../../components/ui/button'
+import { Dialog } from '../../components/ui/dialog'
 import { getBehavior, pushRecentKeycode, KEYCODES } from '../../lib/picker'
 import { useEditor } from '../../lib/editor-state/context'
 import type { BindingChain } from '../../lib/keymap-dt/types'
@@ -51,7 +53,7 @@ export function BindingPicker({ initial, onCancel, onCommit }: Props) {
   }, [behaviorToken])
 
   const tokens = behaviorToken === '&bt'
-    ? ['&bt', ...args].filter(Boolean)
+    ? ['&bt', ...(args ?? [])].filter(Boolean)
     : [behaviorToken, ...normalizedArgs].filter(Boolean)
 
   const previewText = tokens.join(' ')
@@ -67,13 +69,13 @@ export function BindingPicker({ initial, onCancel, onCommit }: Props) {
     // Defensive guard: if a non-string sneaks in (e.g. a MouseEvent from a
     // misuse like `onClick={commit}`), treat it as no override.
     if (typeof overrideValue !== 'string') overrideValue = undefined
-    const currentBehavior = behaviorRef.current
+    const currentBehavior = behaviorRef.current ?? behaviorToken
     const currentBehaviorEntry = getBehavior(currentBehavior)
     const currentArity = currentBehaviorEntry?.arity?.[0] ?? 0
     const currentArgTypes = currentBehaviorEntry?.argTypes ?? []
-    let effectiveArgs = argsRef.current
+    let effectiveArgs = argsRef.current ?? args
     if (overrideValue !== undefined && activeArgIdx >= 0) {
-      effectiveArgs = [...argsRef.current]
+      effectiveArgs = [...effectiveArgs]
       while (effectiveArgs.length <= activeArgIdx) effectiveArgs.push('')
       effectiveArgs[activeArgIdx] = overrideValue
     }
@@ -92,33 +94,11 @@ export function BindingPicker({ initial, onCancel, onCommit }: Props) {
     onCommit({ tokens: effectiveTokens })
   }
 
-  // Modal-level keyboard shortcuts (Esc cancels, Cmd/Ctrl+Enter commits) are
-  // wired via the modal root's onKeyDown below — NOT a window listener.
-  // hono/jsx's useEffect does not run the cleanup function when a component
-  // unmounts via a conditional render (`{cond && <X/>}`), so a window
-  // listener installed by the picker survives modal close and fires again
-  // when the next picker opens, committing the wrong cell. Routing the
-  // shortcut through the modal's DOM keeps the handler scoped to the
-  // currently-mounted picker instance.
-  const handleModalKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      if (e.defaultPrevented) return
-      e.preventDefault()
-      onCancel()
-      return
-    }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      if (e.defaultPrevented) return
-      e.preventDefault()
-      commit()
-    }
-  }
-
   const updateArg = (i: number, v: string) => {
     // Build the new array from the ref (which always reflects the latest
     // state, even within a single React task) and update the ref
     // synchronously so subsequent commit() calls in the same task see it.
-    const next = [...argsRef.current]
+    const next = [...(argsRef.current ?? args)]
     while (next.length <= i) next.push('')
     next[i] = v
     argsRef.current = next
@@ -137,136 +117,153 @@ export function BindingPicker({ initial, onCancel, onCommit }: Props) {
   }
 
   return (
-    <div
-      class="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 pt-[10vh]"
-      onClick={onCancel}
-      onKeyDown={handleModalKeyDown}
+    <Dialog
+      open
+      onClose={onCancel}
+      size="xl"
+      title="Edit binding"
+      hint={<span>⌘↵ to commit · esc to cancel</span>}
+      footer={({ close, runTeardown }) => (
+        <>
+          <div class="flex-1 text-xs text-fg-subtle truncate">
+            Preview: <span class="text-fg font-mono">{previewText || '—'}</span>
+          </div>
+          <Button variant="subtle" onClick={close}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            // `onMouseDown` instead of `onClick`: mousedown fires BEFORE the
+            // focus shift that would normally happen on click, so we can
+            // synchronously flush any focused input's pending state via
+            // `blur()` (which runs that input's onBlur → composeAndEmit →
+            // argsRef sync) and then commit() with fresh `argsRef`. Using
+            // onClick was unreliable because the listbox closing on blur
+            // shifts the modal layout and the click would miss the button.
+            onMouseDown={(e: MouseEvent) => {
+              e.preventDefault()
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur()
+              }
+              // Teardown before commit() → parent's onCommit typically sets
+              // pickerKeyIdx=null which conditionally unmounts this Dialog;
+              // hono/jsx skips useEffect cleanup on that path, so ModalStack
+              // pop and body scroll unlock have to fire synchronously here.
+              runTeardown()
+              commit()
+            }}
+          >
+            Commit
+          </Button>
+        </>
+      )}
     >
-      <div
-        class="bg-[#121212] border border-zinc-700 rounded-lg w-[min(96vw,1100px)] max-h-[92vh] overflow-auto p-6 text-sm font-mono"
-        onClick={(e: Event) => e.stopPropagation()}
-      >
-        <div class="flex justify-between items-baseline mb-4">
-          <h2 class="text-base text-white">Edit binding</h2>
-          <span class="text-[10px] text-zinc-500">⌘↵ to commit · esc to cancel</span>
-        </div>
-
-        <label class="block mb-1 text-zinc-400 text-xs">Behaviour</label>
-        <div class="mb-4">
-          <BehaviorCombobox
-            value={behaviorToken}
-            onChange={(next) => {
-              setBehaviorToken(next)
-              behaviorRef.current = next
-              const nextBehavior = getBehavior(next)
-              const nextArity = nextBehavior?.arity?.[0] ?? 0
-              const nextArgTypes = nextBehavior?.argTypes ?? []
-              const prevArgTypes = behavior?.argTypes ?? []
-              const sameShape =
-                nextArgTypes.length === prevArgTypes.length &&
-                nextArgTypes.every((t, i) => t === prevArgTypes[i])
-              const newArgs = sameShape
-                ? Array.from({ length: nextArity }, (_, i) => argsRef.current[i] ?? '')
-                : Array.from({ length: nextArity }, () => '')
-              argsRef.current = newArgs
-              setArgs(newArgs)
-            }}
-          />
-          {behavior?.description && (
-            <div class="mt-1 text-[10px] text-zinc-500">{behavior.description}</div>
-          )}
-        </div>
-
-        {behaviorToken === '&bt' ? (
-          <BtSpecialForm
-            tokens={['&bt', ...args]}
-            onChange={(t) => {
-              // Sync argsRef alongside state — otherwise commit() reads stale
-              // [''] when BtSpecialForm's default-sync useEffect (which fires
-              // after a &kp → &bt behaviour swap) lands and the user presses
-              // Cmd+Enter before React re-renders.
-              const nextArgs = t.slice(1)
-              argsRef.current = nextArgs
-              setArgs(nextArgs)
-            }}
-          />
-        ) : (
-          expectedArity > 0 && (
-            <div class="mb-4">
-              <label class="block mb-2 text-zinc-400 text-xs">
-                Arguments ({expectedArity})
-                {expectedArity > 1 && (
-                  <span class="text-zinc-600 ml-2">— focus a slot to pick into it</span>
-                )}
-              </label>
-              <div class="grid grid-cols-1 gap-3">
-                {normalizedArgs.map((value, i) => {
-                  const argType = argTypes[i]
-                  const isActive = i === activeArgIdx
-                  const label = argLabels?.[i] ?? argType ?? 'arg'
-                  // `&mt` arg0 ("Hold modifier") wants modifier keycodes only.
-                  const pinModifiers = behaviorToken === '&mt' && i === 0 && argType === 'keycode'
-                  return (
-                    <ArgumentControl
-                      key={`${behaviorToken}-${i}`}
-                      argType={argType}
-                      value={value}
-                      onChange={(v) => {
-                        updateArg(i, v)
-                        if (argType === 'keycode' && v && KEYCODE_TOKEN_SET.has(v.replace(/^[LR][CSGA]\((.+)\)$/, '$1'))) {
-                          advanceAfter(i)
-                        }
-                      }}
-                      onCommit={commit}
-                      pinModifiers={pinModifiers}
-                      layers={state.draft.layers}
-                      isActive={isActive}
-                      onFocus={() => setActiveArgIdx(i)}
-                      label={label}
-                      autoFocus={i === activeArgIdx}
-                    />
-                  )
-                })}
-              </div>
+      {({ runTeardown }) => {
+        // Every commit path — Commit button, Cmd/Ctrl+Enter modal shortcut,
+        // and combobox-driven inline commit (Cmd+Enter inside KeycodeCombobox
+        // reaches ArgumentControl's onCommit) — must flush Dialog teardown
+        // before triggering parent onCommit, which conditionally unmounts us.
+        const commitWithTeardown = (overrideValue?: string) => {
+          runTeardown()
+          commit(overrideValue)
+        }
+        // Dialog owns Escape (→ onCancel). We still need to intercept
+        // Cmd/Ctrl+Enter as a modal-level commit shortcut; a wrapper
+        // <div onKeyDown> catches it via bubbling from whatever input is
+        // focused.
+        const handleContentKeyDown = (e: KeyboardEvent) => {
+          if (e.defaultPrevented) return
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault()
+            commitWithTeardown()
+          }
+        }
+        return (
+          <div class="flex flex-col gap-4" onKeyDown={handleContentKeyDown}>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-medium text-fg-muted">Behaviour</label>
+              <BehaviorCombobox
+                value={behaviorToken}
+                onChange={(next) => {
+                  setBehaviorToken(next)
+                  behaviorRef.current = next
+                  const nextBehavior = getBehavior(next)
+                  const nextArity = nextBehavior?.arity?.[0] ?? 0
+                  const nextArgTypes = nextBehavior?.argTypes ?? []
+                  const prevArgTypes = behavior?.argTypes ?? []
+                  const sameShape =
+                    nextArgTypes.length === prevArgTypes.length &&
+                    nextArgTypes.every((t, i) => t === prevArgTypes[i])
+                  const currentArgs = argsRef.current ?? args
+                  const newArgs = sameShape
+                    ? Array.from({ length: nextArity }, (_, i) => currentArgs[i] ?? '')
+                    : Array.from({ length: nextArity }, () => '')
+                  argsRef.current = newArgs
+                  setArgs(newArgs)
+                }}
+              />
+              {behavior?.description && (
+                <div class="text-[10px] text-fg-subtle mt-0.5">{behavior.description}</div>
+              )}
             </div>
-          )
-        )}
 
-        <div class="flex justify-between items-center gap-2 mt-6">
-          <div class="text-zinc-500">
-            Preview: <span class="text-zinc-200">{previewText}</span>
+            {behaviorToken === '&bt' ? (
+              <BtSpecialForm
+                tokens={['&bt', ...args]}
+                onChange={(t) => {
+                  // Sync argsRef alongside state — otherwise commit() reads stale
+                  // [''] when BtSpecialForm's default-sync useEffect (which fires
+                  // after a &kp → &bt behaviour swap) lands and the user presses
+                  // Cmd+Enter before React re-renders.
+                  const nextArgs = t.slice(1)
+                  argsRef.current = nextArgs
+                  setArgs(nextArgs)
+                }}
+              />
+            ) : (
+              expectedArity > 0 && (
+                <div class="flex flex-col gap-2">
+                  <label class="text-xs font-medium text-fg-muted">
+                    Arguments ({expectedArity})
+                    {expectedArity > 1 && (
+                      <span class="text-fg-subtle ml-2">— focus a slot to pick into it</span>
+                    )}
+                  </label>
+                  <div class="grid grid-cols-1 gap-3">
+                    {normalizedArgs.map((value, i) => {
+                      const argType = argTypes[i]
+                      const isActive = i === activeArgIdx
+                      const label = argLabels?.[i] ?? argType ?? 'arg'
+                      // `&mt` arg0 ("Hold modifier") wants modifier keycodes only.
+                      const pinModifiers = behaviorToken === '&mt' && i === 0 && argType === 'keycode'
+                      return (
+                        <ArgumentControl
+                          key={`${behaviorToken}-${i}`}
+                          argType={argType}
+                          value={value}
+                          onChange={(v) => {
+                            updateArg(i, v)
+                            if (argType === 'keycode' && v && KEYCODE_TOKEN_SET.has(v.replace(/^[LR][CSGA]\((.+)\)$/, '$1'))) {
+                              advanceAfter(i)
+                            }
+                          }}
+                          onCommit={commitWithTeardown}
+                          pinModifiers={pinModifiers}
+                          layers={state.draft.layers}
+                          isActive={isActive}
+                          onFocus={() => setActiveArgIdx(i)}
+                          label={label}
+                          autoFocus={i === activeArgIdx}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            )}
           </div>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="px-3 py-1 bg-zinc-700 text-white rounded hover:bg-zinc-600"
-              onClick={onCancel}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500"
-              // `onMouseDown` instead of `onClick`: mousedown fires BEFORE the
-              // focus shift that would normally happen on click, so we can
-              // synchronously flush any focused input's pending state via
-              // `blur()` (which runs that input's onBlur → composeAndEmit →
-              // argsRef sync) and then commit() with fresh `argsRef`. Using
-              // onClick was unreliable because the listbox closing on blur
-              // shifts the modal layout and the click would miss the button.
-              onMouseDown={(e) => {
-                e.preventDefault()
-                if (document.activeElement instanceof HTMLElement) {
-                  document.activeElement.blur()
-                }
-                commit()
-              }}
-            >
-              Commit
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        )
+      }}
+    </Dialog>
   )
 }

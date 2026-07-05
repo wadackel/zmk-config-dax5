@@ -25,8 +25,8 @@ export function KeyPositionSelector({ selected, onChange }: Props) {
             type="button"
             class={`w-[64px] h-[64px] flex items-center justify-center rounded border text-[12px] font-mono ${
               isSelected
-                ? 'bg-blue-600 border-blue-400 text-white'
-                : 'bg-[#1a1a1a] border-[#2a2a2a] text-zinc-500 hover:border-blue-500'
+                ? 'bg-blue-600 border-blue-400 text-fg'
+                : 'bg-surface-3 border-border text-fg-subtle hover:border-accent'
             }`}
             onClick={() => toggle(k.index)}
           >
