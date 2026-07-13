@@ -32,10 +32,11 @@ After save, run `nix develop --command just build-target dax5_R` from the repo r
 
 ## Limitations
 
-- dax5 only. The picker / matrix mapping are hard-coded for 44 keys.
+- dax5 only. The picker / matrix mapping are hard-coded for 46 keys (12 / 12 / 14 / 8, thumb row uses matrix cols c2..c8 + c11).
 - Editor target file is `config/dax5.keymap`. No multi-keyboard support.
-- The first save normalises whitespace in the `bindings = <…>;` blocks; subsequent edits round-trip cleanly (see `app/lib/keymap-dt/serialize.ts` header for why).
+- The first save normalises whitespace in the `bindings = <…>;` blocks; subsequent edits round-trip cleanly (see `app/lib/keymap-dt/serialize.ts` header for why). The `default_layer.grid.golden` fixture pins the canonical output.
 - Section-body comments inside an edited section are dropped. Comments outside section bodies (root scope, preprocessor, unknown DT blocks) are preserved byte-for-byte.
+- The Sensors tab shows a persistent warning that `steps` (80) is not an integer multiple of `triggers-per-rotation` (24). This reflects the real `dax5.dtsi` values (`80 % 24 ≠ 0`) and is informational, not an editor bug.
 
 ## Tests
 
@@ -43,4 +44,4 @@ After save, run `nix develop --command just build-target dax5_R` from the repo r
 pnpm test
 ```
 
-113 tests covering the parser/writer (`app/lib/keymap-dt/`), the picker / scoring / recent-keycodes (`app/lib/picker/`), the editor reducer (`app/lib/editor-state/`), the matrix mapping, the picker subcomponents (`app/islands/editor/picker/__tests__/`), and the server endpoints (`app/routes/api/keymap.test.ts`).
+Tests cover the parser/writer (`app/lib/keymap-dt/`, including a byte-exact serialize golden for `default_layer`), the picker / scoring / recent-keycodes (`app/lib/picker/`), the editor reducer (`app/lib/editor-state/`), the matrix mapping, the picker subcomponents (`app/islands/editor/picker/__tests__/`), and the server endpoints (`app/routes/api/keymap.test.ts`).

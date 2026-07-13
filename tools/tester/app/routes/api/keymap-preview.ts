@@ -1,8 +1,10 @@
 import { createPatch } from 'diff'
 import { createRoute } from 'honox/factory'
 import { readFile } from 'node:fs/promises'
-import { lint } from '../../lib/keymap-dt/lint'
-import { resolveKeymapPath } from '../../lib/keymap-dt/repo-path'
+import path from 'node:path'
+import { getBoard } from '../../boards/active'
+import { lint } from '../../core/keymap-dt/lint'
+import { resolveKeymapPath } from '../../core/keymap-dt/repo-path'
 
 export const POST = createRoute(async (c) => {
   const r = resolveKeymapPath()
@@ -19,7 +21,8 @@ export const POST = createRoute(async (c) => {
   }
 
   const current = await readFile(r.keymapPath, 'utf8').catch(() => '')
-  const diff = createPatch('dax5.keymap', current, body.text, '', '', { context: 3 })
+  const diffLabel = path.basename(getBoard().keymapSource.keymapRelative)
+  const diff = createPatch(diffLabel, current, body.text, '', '', { context: 3 })
   const lintResult = lint(body.text)
   return c.json({ ok: true, diff, lint: lintResult })
 })

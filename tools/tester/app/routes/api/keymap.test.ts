@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { _resetBackupForTests } from '../../lib/keymap-dt/atomic-write'
+import { _resetBackupForTests } from '../../core/keymap-dt/atomic-write'
 
 const FIXTURE_TEXT = `// minimal valid keymap fixture
 / {

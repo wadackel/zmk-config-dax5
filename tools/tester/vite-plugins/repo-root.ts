@@ -7,7 +7,7 @@ import type { Plugin } from 'vite'
 
 export function repoRoot(): Plugin {
   return {
-    name: 'dax5-repo-root',
+    name: 'repo-root',
     configResolved(config) {
       // tools/tester/ is two levels below the repo root.
       const root = path.resolve(config.root, '../..')

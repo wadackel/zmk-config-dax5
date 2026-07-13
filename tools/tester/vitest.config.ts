@@ -5,6 +5,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'app'),
+      'virtual:zmk-layout': path.resolve(
+        __dirname,
+        'app/boards/dax5/__test-mock__/virtual-layout-mock.ts',
+      ),
     },
   },
   esbuild: {

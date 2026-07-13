@@ -1,8 +1,8 @@
 import { createRoute } from 'honox/factory'
 import { readFile, stat } from 'node:fs/promises'
 import { suppressReloadFor } from '../../../codegen/reload-guard'
-import { atomicWriteFile } from '../../lib/keymap-dt/atomic-write'
-import { resolveKeymapPath } from '../../lib/keymap-dt/repo-path'
+import { atomicWriteFile } from '../../core/keymap-dt/atomic-write'
+import { resolveKeymapPath } from '../../core/keymap-dt/repo-path'
 
 export const GET = createRoute(async (c) => {
   const r = resolveKeymapPath()

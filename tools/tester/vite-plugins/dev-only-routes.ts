@@ -12,30 +12,13 @@
 
 import type { Plugin } from 'vite'
 
-const DEV_ONLY_ISLAND_PATTERN = /app\/islands\/(keymap-editor\.tsx|editor\/.+\.tsx)$/
-const DEV_ONLY_OUTPUT_STEMS = [
-  'keymap-editor',
-  'layers-tab',
-  'binding-picker',
-  'combos-tab',
-  'key-position-selector',
-  'macros-tab',
-  'behaviors-tab',
-  'sensors-tab',
-  'mouse-gestures-tab',
-  'save-dialog',
-  // picker/ subcomponents
-  'keycode-combobox',
-  'behavior-combobox',
-  'modifier-toggles',
-  'bt-special-form',
-  'argument-control',
-]
+const DEV_ONLY_ISLAND_PATTERN = /app\/islands\/keymap-editor\.tsx$/
+const DEV_ONLY_OUTPUT_STEMS = ['keymap-editor']
 
 export function devOnlyRoutes(): Plugin {
   let isBuild = false
   return {
-    name: 'dax5-dev-only-routes',
+    name: 'dev-only-routes',
     config(_userConfig, env) {
       isBuild = env.command === 'build'
     },

@@ -1,27 +1,82 @@
 import { useEffect, useState } from 'hono/jsx'
-import { Button } from '../components/ui/button'
-import { ToastProvider } from '../components/ui/toast'
-import { EditorProvider, useEditor } from '../lib/editor-state/context'
-import { fetchKeymap } from '../lib/editor-state/io'
-import { ModalStackProvider, useModalStack } from '../lib/editor-state/modal-stack'
-import { parseKeymap } from '../lib/keymap-dt/parse'
-import type { EditorTab } from '../lib/editor-state/types'
-import { BehaviorsTab } from './editor/behaviors-tab'
-import { CombosTab } from './editor/combos-tab'
-import { LayersTab } from './editor/layers-tab'
-import { MacrosTab } from './editor/macros-tab'
-import { MouseGesturesTab } from './editor/mouse-gestures-tab'
-import { SaveDialog } from './editor/save-dialog'
-import { SensorsTab } from './editor/sensors-tab'
+import { getBoard } from '../boards/active'
+import { Button } from '../ui/button'
+import { ToastProvider } from '../ui/toast'
+import { NavRail, type NavRailItem } from '../features/editor/shell/nav-rail'
+import {
+  BehaviorsIcon,
+  CombosIcon,
+  LayersIcon,
+  MacrosIcon,
+  MouseGesturesIcon,
+  SensorsIcon,
+  TesterIcon,
+} from '../features/editor/shell/nav-icons'
+import { EditorProvider, useEditor } from '../core/editor-state/context'
+import { fetchKeymap } from '../core/editor-state/io'
+import { ModalStackProvider, useModalStack } from '../core/editor-state/modal-stack'
+import { parseKeymap } from '../core/keymap-dt/parse'
+import type { EditorDraft, EditorTab } from '../core/editor-state/types'
+import { BehaviorsTab } from '../features/editor/tabs/behaviors/behaviors-tab'
+import { CombosTab } from '../features/editor/tabs/combos/combos-tab'
+import { LayersTab } from '../features/editor/tabs/layers/layers-tab'
+import { MacrosTab } from '../features/editor/tabs/macros/macros-tab'
+import { MouseGesturesTab } from '../features/editor/tabs/mouse-gestures/mouse-gestures-tab'
+import { SaveDialog } from '../features/editor/save/save-dialog'
+import { SensorsTab } from '../features/editor/tabs/sensors/sensors-tab'
 
-const TABS: { id: EditorTab; label: string }[] = [
-  { id: 'layers', label: 'Layers' },
-  { id: 'combos', label: 'Combos' },
-  { id: 'macros', label: 'Macros' },
-  { id: 'behaviors', label: 'Behaviors' },
-  { id: 'sensors', label: 'Sensors' },
-  { id: 'mouse-gestures', label: 'Mouse Gestures' },
+// The rail is the single source of truth for tab ordering + identity.
+// The editor's header title needs a longer human-readable label than the
+// 6-char icon rail can fit, so map short → long here rather than teach
+// {@link NavRailItem} two labels.
+const NAV_ITEMS: NavRailItem[] = [
+  { id: 'layers', kind: 'editor-tab', label: 'Layers', Icon: LayersIcon },
+  { id: 'combos', kind: 'editor-tab', label: 'Combos', Icon: CombosIcon },
+  { id: 'macros', kind: 'editor-tab', label: 'Macros', Icon: MacrosIcon },
+  { id: 'behaviors', kind: 'editor-tab', label: 'Behav', Icon: BehaviorsIcon },
+  { id: 'sensors', kind: 'editor-tab', label: 'Sensor', Icon: SensorsIcon },
+  { id: 'mouse-gestures', kind: 'editor-tab', label: 'Mouse', Icon: MouseGesturesIcon },
+  { id: 'tester', kind: 'tester', label: 'Tester', Icon: TesterIcon, href: '/tester' },
 ]
+
+const EDITOR_TAB_IDS: EditorTab[] = NAV_ITEMS.filter(
+  (i): i is NavRailItem & { kind: 'editor-tab' } => i.kind === 'editor-tab',
+).map((i) => i.id)
+
+const EDITOR_TAB_HEADER_LABEL: Record<EditorTab, string> = {
+  layers: 'Layers',
+  combos: 'Combos',
+  macros: 'Macros',
+  behaviors: 'Behaviors',
+  sensors: 'Sensors',
+  'mouse-gestures': 'Mouse Gestures',
+}
+
+// Subtitle reflects the current draft's shape so the header at a glance
+// signals what the tab is looking at (combos, layers, etc.). Per-tab labels
+// that describe hardware come from the active board profile so a swap
+// picks up its own naming.
+function tabSubtitle(activeTab: EditorTab, draft: EditorDraft): string {
+  const board = getBoard()
+  switch (activeTab) {
+    case 'layers':
+      return board.branding.subtitle(draft.layers.length)
+    case 'combos':
+      return draft.combos.length === 1
+        ? '1 combo defined'
+        : `${draft.combos.length} combos defined`
+    case 'macros':
+      return draft.macros.length === 1
+        ? '1 macro defined'
+        : `${draft.macros.length} macros defined`
+    case 'behaviors':
+      return `${draft.rootBehaviors.length} global · ${draft.behaviors.length} custom`
+    case 'sensors':
+      return board.branding.encoderLabel
+    case 'mouse-gestures':
+      return board.branding.gestureLabel
+  }
+}
 
 function EditorShell() {
   const { state, dispatch } = useEditor()
@@ -108,139 +163,119 @@ function EditorShell() {
 
   if (loading) {
     return (
-      <div class="flex items-center justify-center min-h-screen text-fg-muted">
+      <div class="flex-1 min-h-0 flex items-center justify-center text-fg-muted">
         Loading keymap…
       </div>
     )
   }
   if (loadError) {
     return (
-      <div class="flex items-center justify-center min-h-screen text-danger p-8">
+      <div class="flex-1 min-h-0 flex items-center justify-center text-danger p-8">
         {loadError}
       </div>
     )
   }
 
   const dirty = state.past.length > 0
+  const activeLabel = EDITOR_TAB_HEADER_LABEL[state.activeTab] ?? ''
+  const activeSubtitle = tabSubtitle(state.activeTab, state.draft)
+
+  const focusTab = (id: EditorTab) => {
+    dispatch({ type: 'SET_ACTIVE_TAB', tab: id })
+    queueMicrotask(() => {
+      const el = document.querySelector<HTMLButtonElement>(
+        `[data-editor-tab="${id}"]`,
+      )
+      el?.focus()
+    })
+  }
+
+  const onRailKeyDown = (e: KeyboardEvent) => {
+    if (
+      e.key !== 'ArrowUp' &&
+      e.key !== 'ArrowDown' &&
+      e.key !== 'Home' &&
+      e.key !== 'End'
+    ) {
+      return
+    }
+    e.preventDefault()
+    const currentIdx = EDITOR_TAB_IDS.indexOf(state.activeTab)
+    const last = EDITOR_TAB_IDS.length - 1
+    let nextIdx = currentIdx
+    if (e.key === 'ArrowUp') nextIdx = currentIdx <= 0 ? last : currentIdx - 1
+    else if (e.key === 'ArrowDown') nextIdx = currentIdx >= last ? 0 : currentIdx + 1
+    else if (e.key === 'Home') nextIdx = 0
+    else if (e.key === 'End') nextIdx = last
+    const target = EDITOR_TAB_IDS[nextIdx]
+    if (target) focusTab(target)
+  }
 
   return (
-    <div class="flex-1 min-h-0 flex flex-col bg-surface-0 text-fg">
-      <header class="border-b border-border-subtle px-4 py-3 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-4 min-w-0">
-          <a
-            href="/tester"
-            class="text-fg-subtle hover:text-fg text-sm transition-colors"
-          >
-            ← Tester
-          </a>
-          <h1 class="text-base font-semibold m-0 tracking-tight">Keymap Editor</h1>
-          <span class="text-[10px] uppercase tracking-wider text-fg-subtle border border-border rounded-full px-1.5 py-0.5">
-            dev
-          </span>
-          {dirty && (
-            <span
-              class="inline-flex items-center gap-1.5 text-xs text-warning"
-              aria-live="polite"
-              title="You have unsaved edits"
+    <div class="flex-1 min-h-0 flex bg-surface-0 text-fg overflow-hidden">
+      <NavRail
+        items={NAV_ITEMS}
+        activeId={state.activeTab}
+        onSelect={(id) => dispatch({ type: 'SET_ACTIVE_TAB', tab: id })}
+        onKeyDown={onRailKeyDown}
+      />
+
+      <div class="flex-1 min-w-0 flex flex-col">
+        <header class="border-b border-border-subtle px-6 py-3.5 flex items-center justify-between gap-4">
+          <div class="flex items-baseline gap-3 min-w-0">
+            <h1 class="text-[17px] font-bold m-0 tracking-tight">{activeLabel}</h1>
+            <span class="text-xs font-mono text-fg-subtle">{activeSubtitle}</span>
+            {dirty && (
+              <span
+                class="inline-flex items-center gap-1.5 text-xs text-warning"
+                aria-live="polite"
+                title="You have unsaved edits"
+              >
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-warning" />
+                Unsaved
+              </span>
+            )}
+          </div>
+          <div class="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={state.past.length === 0}
+              onClick={() => dispatch({ type: 'UNDO' })}
+              title="Undo (⌘Z / Ctrl+Z)"
             >
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-warning" />
-              Unsaved changes
-            </span>
-          )}
-        </div>
-        <div class="flex items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={state.past.length === 0}
-            onClick={() => dispatch({ type: 'UNDO' })}
-            title="Undo (⌘Z / Ctrl+Z)"
-          >
-            ↶ Undo
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={state.future.length === 0}
-            onClick={() => dispatch({ type: 'REDO' })}
-            title="Redo (⌘⇧Z / Ctrl+Y)"
-          >
-            ↷ Redo
-          </Button>
-          <Button size="sm" variant="primary" onClick={() => setSaveDialogOpen(true)}>
-            Save…
-          </Button>
-        </div>
-      </header>
-      <nav
-        class="flex border-b border-border-subtle px-1"
-        role="tablist"
-        aria-label="Editor sections"
-        onKeyDown={(e: KeyboardEvent) => {
-          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') {
-            return
-          }
-          e.preventDefault()
-          const currentIdx = TABS.findIndex((t) => t.id === state.activeTab)
-          const last = TABS.length - 1
-          let nextIdx = currentIdx
-          if (e.key === 'ArrowLeft') nextIdx = currentIdx <= 0 ? last : currentIdx - 1
-          else if (e.key === 'ArrowRight') nextIdx = currentIdx >= last ? 0 : currentIdx + 1
-          else if (e.key === 'Home') nextIdx = 0
-          else if (e.key === 'End') nextIdx = last
-          const target = TABS[nextIdx]
-          if (!target) return
-          dispatch({ type: 'SET_ACTIVE_TAB', tab: target.id })
-          // Focus the newly-active tab so subsequent Arrow keys keep working.
-          queueMicrotask(() => {
-            const el = document.querySelector<HTMLButtonElement>(
-              `[data-editor-tab="${target.id}"]`,
-            )
-            el?.focus()
-          })
-        }}
-      >
-        {TABS.map((t) => {
-          const active = state.activeTab === t.id
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              id={`tab-${t.id}`}
-              data-editor-tab={t.id}
-              // Serialize to string — hono/jsx renders boolean aria attributes
-              // as empty-string values, which screen readers do not treat as
-              // the truthful state ("true"/"false" is what APG expects).
-              aria-selected={active ? 'true' : 'false'}
-              aria-controls={`tabpanel-${t.id}`}
-              tabIndex={active ? 0 : -1}
-              class={[
-                'px-3.5 py-2 text-sm transition-colors relative',
-                active
-                  ? 'text-fg after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-t after:bg-accent'
-                  : 'text-fg-muted hover:text-fg',
-              ].join(' ')}
-              onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab: t.id })}
+              ↶ Undo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={state.future.length === 0}
+              onClick={() => dispatch({ type: 'REDO' })}
+              title="Redo (⌘⇧Z / Ctrl+Y)"
             >
-              {t.label}
-            </button>
-          )
-        })}
-      </nav>
-      <main
-        class="flex-1 flex flex-col min-h-0 p-4 overflow-auto"
-        role="tabpanel"
-        id={`tabpanel-${state.activeTab}`}
-        aria-labelledby={`tab-${state.activeTab}`}
-      >
-        {state.activeTab === 'layers' && <LayersTab />}
-        {state.activeTab === 'combos' && <CombosTab />}
-        {state.activeTab === 'macros' && <MacrosTab />}
-        {state.activeTab === 'behaviors' && <BehaviorsTab />}
-        {state.activeTab === 'sensors' && <SensorsTab />}
-        {state.activeTab === 'mouse-gestures' && <MouseGesturesTab />}
-      </main>
+              ↷ Redo
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => setSaveDialogOpen(true)}>
+              Save…
+            </Button>
+          </div>
+        </header>
+
+        <main
+          class="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden"
+          role="tabpanel"
+          id={`tabpanel-${state.activeTab}`}
+          aria-labelledby={`tab-${state.activeTab}`}
+        >
+          {state.activeTab === 'layers' && <LayersTab />}
+          {state.activeTab === 'combos' && <CombosTab />}
+          {state.activeTab === 'macros' && <MacrosTab />}
+          {state.activeTab === 'behaviors' && <BehaviorsTab />}
+          {state.activeTab === 'sensors' && <SensorsTab />}
+          {state.activeTab === 'mouse-gestures' && <MouseGesturesTab />}
+        </main>
+      </div>
+
       {saveDialogOpen && <SaveDialog onClose={() => setSaveDialogOpen(false)} />}
     </div>
   )

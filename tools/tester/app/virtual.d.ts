@@ -3,5 +3,4 @@ declare module 'virtual:zmk-layout' {
   export const KEYS: KeyDef[]
   export const ENCODERS: EncoderDef[]
   export const TESTABLE_KEY_COUNT: number
-  export const MATRIX_INTEGRITY_OK: boolean
 }

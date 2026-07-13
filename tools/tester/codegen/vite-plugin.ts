@@ -1,9 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Plugin } from 'vite'
-import { parseKeymap } from '../app/lib/keymap-dt/parse'
-import type { BindingChain } from '../app/lib/keymap-dt/types'
-import { checkMatrixIntegrity } from '../app/lib/matrix-mapping'
+import type { BindingChain } from '../app/core/keymap-dt/types'
 import { isReloadSuppressed } from './reload-guard'
 import { resolveEncoders, resolveKeys, type ParsedBinding } from './resolve'
 
@@ -36,7 +34,13 @@ export function zmkLayout(): Plugin {
     keymapPath: path.join(repoRoot, 'config/dax5.keymap'),
   })
 
-  const generateModule = () => {
+  const generateModule = async () => {
+    // Dynamic imports defer loading of parse.ts and boards/dax5/matrix (and
+    // their transitive board-profile chain) until plugin `load()` fires. Top-
+    // level imports here would pull `virtual:zmk-layout` at Node ESM config-
+    // load time, before Vite has registered any plugins that can resolve it.
+    const { parseKeymap } = await import('../app/core/keymap-dt/parse')
+    const { matrix: dax5Matrix } = await import('../app/boards/dax5/matrix')
     const { jsonPath, keymapPath } = getSourceFiles()
     const layout = JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as DaxLayout
     const keymapContent = fs.readFileSync(keymapPath, 'utf-8')
@@ -47,17 +51,23 @@ export function zmkLayout(): Plugin {
     if (!defaultLayer) {
       throw new Error('zmkLayout: default_layer not found in keymap')
     }
+    // A drift between the physical layout (dax5.json) and the matrix TRANSFORM
+    // silently produces mis-indexed keys, so fail the build before resolveKeys
+    // ever runs on mismatched data.
+    if (!dax5Matrix.checkIntegrity(physicalLayout.length)) {
+      throw new Error(
+        `zmkLayout: physical layout has ${physicalLayout.length} keys but the matrix TRANSFORM expects ${dax5Matrix.keyCount}`,
+      )
+    }
     const bindings: ParsedBinding[] = defaultLayer.bindings.map(chainToParsedBinding)
     const keys = resolveKeys(physicalLayout, bindings)
     const encoders = resolveEncoders(layout.sensors)
     const testableCount = keys.filter(k => k.testability !== 'untestable').length
-    const integrityOk = checkMatrixIntegrity(physicalLayout.length)
 
     return [
       `export const KEYS = ${JSON.stringify(keys, null, 2)}`,
       `export const ENCODERS = ${JSON.stringify(encoders, null, 2)}`,
       `export const TESTABLE_KEY_COUNT = ${testableCount}`,
-      `export const MATRIX_INTEGRITY_OK = ${integrityOk}`,
     ].join('\n')
   }
 
@@ -73,9 +83,9 @@ export function zmkLayout(): Plugin {
       if (id === VIRTUAL_MODULE_ID) return RESOLVED_ID
     },
 
-    load(id) {
+    async load(id) {
       if (id !== RESOLVED_ID) return
-      return generateModule()
+      return await generateModule()
     },
 
     configureServer(server) {
