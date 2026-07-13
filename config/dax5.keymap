@@ -87,7 +87,7 @@
     combos {
         compatible = "zmk,combos";
 
-        to_device {
+        mo_device {
             bindings = <&mo 6>;
             key-positions = <0 29>;
             layers = <0>;
@@ -96,6 +96,18 @@
         kl_scroll {
             bindings = <&mo 5>;
             key-positions = <20 21>;
+            layers = <0>;
+        };
+
+        to_device_l {
+            bindings = <&to 6>;
+            key-positions = <0 12 24>;
+            layers = <0>;
+        };
+
+        to_device_r {
+            bindings = <&to 6>;
+            key-positions = <11 23 37>;
             layers = <0>;
         };
     };
@@ -152,10 +164,10 @@
 
         Num {
             bindings = <
-&trans   &kp SLASH   &kp N7   &kp N8   &kp N9   &kp MINUS                                     &trans          &trans   &trans   &trans   &trans      &trans
-&trans   &kp STAR    &kp N4   &kp N5   &kp N6   &kp PLUS                                      &kp BACKSPACE   &trans   &trans   &trans   &kp COLON   &trans
-&trans   &kp N0      &kp N1   &kp N2   &kp N3   &kp PRCNT   &trans                   &trans   &trans          &trans   &trans   &trans   &trans      &trans
-                              &trans   &trans   &trans      &trans                   &trans   &trans
+&trans   &kp SLASH   &kp N7   &kp N8   &kp N9   &kp MINUS                                      &trans          &trans   &trans   &trans   &trans      &trans
+&trans   &kp STAR    &kp N4   &kp N5   &kp N6   &kp PLUS                                       &kp BACKSPACE   &trans   &trans   &trans   &kp COLON   &trans
+&trans   &kp N0      &kp N1   &kp N2   &kp N3   &kp PRCNT   &trans                    &trans   &trans          &trans   &trans   &trans   &trans      &trans
+                              &trans   &trans   &trans      &kp DOT                   &trans   &trans
             >;
 
             sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP>, <&inc_dec_kp C_BRI_INC C_BRI_DEC>;
