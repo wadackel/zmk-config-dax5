@@ -33,14 +33,45 @@ export function LayerList() {
   const [dragging, setDragging] = useState<number | null>(null)
   // Position where the drag would drop right now (0..N inclusive; N = end).
   const [dropTarget, setDropTarget] = useState<number | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const [pendingFocusIdx, setPendingFocusIdx] = useState<number | null>(null)
+
+  // The `autofocus` attribute is inert here: hono/jsx passes it through with
+  // setAttribute, and the HTML spec ignores autofocus candidates inserted once
+  // the document already moved focus off <body> — which is always the case for
+  // a row the user just clicked or tabbed to. Without an explicit focus() the
+  // row keeps focus while tabIndex is -1 and onKeyDown early-returns, so Enter
+  // and Escape would both dead-end.
+  useEffect(() => {
+    if (renaming !== null) inputRef.current?.focus()
+  }, [renaming])
 
   const startRename = (idx: number) => setRenaming(idx)
   const commitRename = (idx: number, name: string) => {
     if (name.trim() !== layers[idx].name) {
       dispatch({ type: 'RENAME_LAYER', idx, name })
     }
-    setRenaming(null)
   }
+  // Every exit path funnels through blur: CommittingTextInput calls blur() itself
+  // on Enter and Escape, so this is the one place that has to close the editor.
+  const endRename = (idx: number, e: FocusEvent) => {
+    setRenaming(null)
+    // Enter/Escape leave focus on <body>, so restore the row and keep tab order
+    // local. A blur from clicking another control names it in relatedTarget —
+    // pulling focus back would fight the click the user just made.
+    if (e.relatedTarget) return
+    setPendingFocusIdx(idx)
+  }
+
+  // Rows are keyed by name, so a committed rename swaps the element out; the
+  // ComboList can focus straight from its blur handler because its keys are
+  // positional, but here a synchronous focus would land on the discarded node.
+  useEffect(() => {
+    if (pendingFocusIdx === null) return
+    rowRefs.current?.[pendingFocusIdx]?.focus()
+    setPendingFocusIdx(null)
+  }, [pendingFocusIdx, layers])
 
   const onDragStart = (idx: number) => (e: DragEvent) => {
     setDragging(idx)
@@ -108,13 +139,22 @@ export function LayerList() {
                 <div class="h-0.5 rounded-full bg-accent mb-1" aria-hidden="true" />
               )}
               <div
-                role="button"
+                ref={(el: HTMLDivElement | null) => {
+                  if (rowRefs.current) rowRefs.current[i] = el
+                }}
+                // `button` has Children Presentational: True, so keeping the role
+                // while the input is mounted would strip the textbox from the
+                // accessibility tree (axe `nested-interactive`). Dropping role and
+                // aria-label during rename hands naming back to the input itself.
+                role={isRenaming ? undefined : 'button'}
                 tabIndex={isRenaming ? -1 : 0}
                 aria-current={isActive ? 'true' : undefined}
                 aria-label={
-                  isProtected
-                    ? `Layer ${l.name} (locked at position 0)`
-                    : `Layer ${l.name}. Enter to select, F2 to rename, Alt+↑/↓ to move`
+                  isRenaming
+                    ? undefined
+                    : isProtected
+                      ? `Layer ${l.name} (locked at position 0)`
+                      : `Layer ${l.name}. Enter to select, F2 to rename, Alt+↑/↓ to move`
                 }
                 draggable={!isRenaming && !isProtected ? 'true' : 'false'}
                 onDragStart={onDragStart(i)}
@@ -214,11 +254,12 @@ export function LayerList() {
                 </span>
                 {isRenaming ? (
                   <CommittingTextInput
+                    ref={inputRef}
                     value={l.name}
                     onCommit={(name) => commitRename(i, name)}
-                    onBlur={() => setRenaming(null)}
+                    onBlur={(e: FocusEvent) => endRename(i, e)}
                     class="flex-1 min-w-0 !px-1.5 !py-0.5 !text-[13px]"
-                    autoFocus
+                    aria-label={`Rename layer ${l.name}`}
                   />
                 ) : (
                   <span
