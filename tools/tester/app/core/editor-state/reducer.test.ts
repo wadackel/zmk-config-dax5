@@ -684,6 +684,94 @@ describe('editor reducer', () => {
     })
   })
 
+  // The whole-entry UPDATE_* actions carry a name alongside bindings and key
+  // positions, so they cannot simply reject: they keep the existing name and let
+  // the rest of the edit through. Without this, the DT identifier invariant that
+  // RENAME_* enforces was bypassable from the inspector docks.
+  describe('UPDATE_* name validation', () => {
+    it('UPDATE_COMBO keeps the current name when the new one is not a DT identifier', () => {
+      let s = makeState()
+      s = reducer(s, { type: 'ADD_COMBO' })
+      const combo = s.draft.combos[0]
+      const next = reducer(s, {
+        type: 'UPDATE_COMBO',
+        index: 0,
+        combo: { ...combo, name: 'has space', keyPositions: [3, 4] },
+      })
+      expect(next.draft.combos[0].name).toBe(combo.name)
+      // The non-name part of the edit still lands.
+      expect(next.draft.combos[0].keyPositions).toEqual([3, 4])
+    })
+
+    it('UPDATE_COMBO keeps the current name on a duplicate', () => {
+      let s = makeState()
+      s = reducer(s, { type: 'ADD_COMBO' })
+      s = reducer(s, { type: 'ADD_COMBO' })
+      const first = s.draft.combos[0]
+      const next = reducer(s, {
+        type: 'UPDATE_COMBO',
+        index: 0,
+        combo: { ...first, name: s.draft.combos[1].name },
+      })
+      expect(next.draft.combos[0].name).toBe(first.name)
+    })
+
+    it('UPDATE_COMBO applies a valid rename', () => {
+      let s = makeState()
+      s = reducer(s, { type: 'ADD_COMBO' })
+      const combo = s.draft.combos[0]
+      const next = reducer(s, {
+        type: 'UPDATE_COMBO',
+        index: 0,
+        combo: { ...combo, name: 'chord_esc' },
+      })
+      expect(next.draft.combos[0].name).toBe('chord_esc')
+    })
+
+    it('UPDATE_BEHAVIOR keeps the current name when the new one would inject a DT node', () => {
+      // Behaviors only ever arrive from the parsed keymap — there is no
+      // ADD_BEHAVIOR — so seed the draft directly.
+      const s = makeState({
+        ...emptyDraft(),
+        layers: [makeLayer('default_layer', { tokens: ['&trans'] })],
+        behaviors: [
+          {
+            name: 'my_ht',
+            compatible: 'zmk,behavior-hold-tap',
+            props: [{ name: '#binding-cells', value: '<2>' }],
+            bindings: [{ tokens: ['&kp'] }, { tokens: ['&kp'] }],
+          },
+        ],
+      })
+      const behavior = s.draft.behaviors[0]
+      const next = reducer(s, {
+        type: 'UPDATE_BEHAVIOR',
+        index: 0,
+        behavior: { ...behavior, name: 'x { evil = <1>; }; y' },
+      })
+      expect(next.draft.behaviors[0].name).toBe('my_ht')
+    })
+
+    it('UPDATE_MACRO keeps the current name when the new one is not a DT identifier', () => {
+      let s = makeState()
+      s = reducer(s, { type: 'ADD_MACRO' })
+      const macro = s.draft.macros[0]
+      const next = reducer(s, {
+        type: 'UPDATE_MACRO',
+        index: 0,
+        macro: { ...macro, name: '9bad' },
+      })
+      expect(next.draft.macros[0].name).toBe(macro.name)
+    })
+
+    it('UPDATE_* rejects an out-of-range index', () => {
+      let s = makeState()
+      s = reducer(s, { type: 'ADD_COMBO' })
+      const combo = s.draft.combos[0]
+      expect(reducer(s, { type: 'UPDATE_COMBO', index: 99, combo })).toBe(s)
+    })
+  })
+
   describe('RENAME_MACRO', () => {
     function makeStateWithMacroRefs(): EditorState {
       const draft: EditorDraft = {

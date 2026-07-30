@@ -364,17 +364,11 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       // idx 0 must remain `default_layer` — codegen/vite-plugin.ts:46 looks it
       // up by name at build time, so a rename would break the ZMK build.
       if (idx === 0) return state
-      // DT identifier rule (mirrors AddLayerDialog): first char letter/underscore,
-      // rest letters/digits/underscores. Spaces or leading digits produce invalid
-      // DTS at serialize time.
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return state
-      const currentName = state.draft.layers[idx]!.name
-      if (trimmed === currentName) return state
-      // Reject collisions with any other layer's name — DT identifiers must
-      // be unique within the keymap node.
-      if (state.draft.layers.some((l, i) => i !== idx && l.name === trimmed)) {
-        return state
-      }
+      // RENAME_* rejects a no-op outright so an unchanged name costs no history
+      // entry; resolveEntryName cannot distinguish that from an invalid name
+      // because UPDATE_* wants both to fall back to the current one.
+      if (trimmed === state.draft.layers[idx]!.name) return state
+      if (resolveEntryName(state.draft.layers, idx, trimmed) !== trimmed) return state
       return mutateDraft(state, (d) => {
         d.layers = d.layers.map((l, i) => (i === idx ? { ...l, name: trimmed } : l))
       })
@@ -492,10 +486,14 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         d.combos = [...d.combos, next]
       })
 
-    case 'UPDATE_COMBO':
+    case 'UPDATE_COMBO': {
+      const { index, combo } = action
+      if (index < 0 || index >= state.draft.combos.length) return state
+      const name = resolveEntryName(state.draft.combos, index, combo.name)
       return mutateDraft(state, (d) => {
-        d.combos = d.combos.map((c, i) => (i === action.index ? action.combo : c))
+        d.combos = d.combos.map((c, i) => (i === index ? { ...combo, name } : c))
       })
+    }
 
     case 'REMOVE_COMBO':
       return mutateDraft(state, (d) => {
@@ -507,12 +505,8 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       const trimmed = name.trim()
       if (!trimmed) return state
       if (index < 0 || index >= state.draft.combos.length) return state
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return state
-      const currentName = state.draft.combos[index].name
-      if (trimmed === currentName) return state
-      if (state.draft.combos.some((c, i) => i !== index && c.name === trimmed)) {
-        return state
-      }
+      if (trimmed === state.draft.combos[index].name) return state
+      if (resolveEntryName(state.draft.combos, index, trimmed) !== trimmed) return state
       return mutateDraft(state, (d) => {
         d.combos = d.combos.map((c, i) => (i === index ? { ...c, name: trimmed } : c))
       })
@@ -528,10 +522,14 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         d.macros = [...d.macros, next]
       })
 
-    case 'UPDATE_MACRO':
+    case 'UPDATE_MACRO': {
+      const { index, macro } = action
+      if (index < 0 || index >= state.draft.macros.length) return state
+      const name = resolveEntryName(state.draft.macros, index, macro.name)
       return mutateDraft(state, (d) => {
-        d.macros = d.macros.map((m, i) => (i === action.index ? action.macro : m))
+        d.macros = d.macros.map((m, i) => (i === index ? { ...macro, name } : m))
       })
+    }
 
     case 'REMOVE_MACRO':
       return mutateDraft(state, (d) => {
@@ -543,12 +541,9 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       const trimmed = name.trim()
       if (!trimmed) return state
       if (index < 0 || index >= state.draft.macros.length) return state
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return state
       const currentName = state.draft.macros[index].name
       if (trimmed === currentName) return state
-      if (state.draft.macros.some((m, i) => i !== index && m.name === trimmed)) {
-        return state
-      }
+      if (resolveEntryName(state.draft.macros, index, trimmed) !== trimmed) return state
       const renamed = renameMacroRefs(state.draft, currentName, trimmed)
       const nextDraft: EditorDraft = {
         ...renamed,
@@ -564,10 +559,14 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       }
     }
 
-    case 'UPDATE_BEHAVIOR':
+    case 'UPDATE_BEHAVIOR': {
+      const { index, behavior } = action
+      if (index < 0 || index >= state.draft.behaviors.length) return state
+      const name = resolveEntryName(state.draft.behaviors, index, behavior.name)
       return mutateDraft(state, (d) => {
-        d.behaviors = d.behaviors.map((b, i) => (i === action.index ? action.behavior : b))
+        d.behaviors = d.behaviors.map((b, i) => (i === index ? { ...behavior, name } : b))
       })
+    }
 
     case 'UPDATE_ROOT_BEHAVIOR':
       return mutateDraft(state, (d) => {
@@ -611,6 +610,32 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       }
     }
   }
+}
+
+export const DT_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/**
+ * Resolves the name an entry may actually take. `serialize.ts` interpolates
+ * entry names straight into `name: nodeName {` headers, so a value with spaces,
+ * braces or a leading digit emits broken — or worse, syntactically valid but
+ * misplaced — devicetree. Returns the trimmed name when it is a unique DT
+ * identifier, otherwise the name the entry already has.
+ *
+ * The whole-entry `UPDATE_*` actions use this rather than rejecting outright:
+ * they carry bindings and key positions alongside the name, and dropping those
+ * edits because the name was mistyped loses more than it protects.
+ */
+export function resolveEntryName<T extends { name: string }>(
+  entries: readonly T[],
+  index: number,
+  next: string,
+): string {
+  const current = entries[index]?.name ?? next
+  const trimmed = next.trim()
+  if (trimmed === current) return current
+  if (!DT_IDENT.test(trimmed)) return current
+  if (entries.some((e, i) => i !== index && e.name === trimmed)) return current
+  return trimmed
 }
 
 function mutateDraft(state: EditorState, mutator: (d: EditorDraft) => void): EditorState {
