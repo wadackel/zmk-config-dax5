@@ -1,7 +1,10 @@
 export {
   BEHAVIORS,
+  allBehaviors,
+  deriveDraftBehaviors,
   getBehavior,
   searchBehaviors,
+  withDraft,
   type BehaviorArgType,
   type BehaviorEntry,
   type BehaviorGroup,

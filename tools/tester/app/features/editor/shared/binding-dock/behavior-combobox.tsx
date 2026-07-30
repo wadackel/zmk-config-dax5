@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'hono/jsx'
 import { DockField } from '../../../../features/editor/shell/dock-field'
-import { BEHAVIORS, getBehavior, type BehaviorEntry, type BehaviorGroup } from '../../../../core/picker'
+import {
+  getBehavior,
+  withDraft,
+  type BehaviorEntry,
+  type BehaviorGroup,
+} from '../../../../core/picker'
+import { useEditor } from '../../../../core/editor-state/context'
 
 type Props = {
   value: string
@@ -42,10 +48,10 @@ type Row =
   | { kind: 'header'; group: BehaviorGroup }
   | { kind: 'item'; entry: BehaviorEntry }
 
-function filterBehaviors(query: string): BehaviorEntry[] {
+function filterBehaviors(all: BehaviorEntry[], query: string): BehaviorEntry[] {
   const q = query.toLowerCase().trim()
-  if (!q) return BEHAVIORS
-  return BEHAVIORS.filter((b) => {
+  if (!q) return all
+  return all.filter((b) => {
     if (b.token.toLowerCase().includes(q)) return true
     if (b.label.toLowerCase().includes(q)) return true
     if (b.description?.toLowerCase().includes(q)) return true
@@ -53,8 +59,8 @@ function filterBehaviors(query: string): BehaviorEntry[] {
   })
 }
 
-function buildRows(query: string): Row[] {
-  const items = filterBehaviors(query)
+function buildRows(all: BehaviorEntry[], query: string): Row[] {
+  const items = filterBehaviors(all, query)
   const byGroup: Record<BehaviorGroup, BehaviorEntry[]> = {} as Record<BehaviorGroup, BehaviorEntry[]>
   for (const g of GROUP_ORDER) byGroup[g] = []
   for (const b of items) byGroup[b.group].push(b)
@@ -73,7 +79,8 @@ export function BehaviorCombobox({
   popoverPlacement = 'below',
   ariaLabel = 'Behaviour',
 }: Props) {
-  const current = getBehavior(value)
+  const { state } = useEditor()
+  const current = getBehavior(value, state.draft)
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
@@ -81,7 +88,10 @@ export function BehaviorCombobox({
   const listRef = useRef<HTMLDivElement | null>(null)
   const skipBlurCloseRef = useRef(false)
 
-  const rows = useMemo(() => buildRows(query), [query])
+  // Same list `getBehavior` resolves against, so a token shown in the picker
+  // always looks up to the entry the inspector will use for arity.
+  const behaviors = useMemo(() => withDraft(state.draft), [state.draft])
+  const rows = useMemo(() => buildRows(behaviors, query), [behaviors, query])
   const selectableIndexes = useMemo(() => {
     const out: number[] = []
     rows.forEach((r, i) => {

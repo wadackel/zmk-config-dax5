@@ -11,6 +11,7 @@ import {
 } from '../../../../core/keymap-image/export'
 import type { BgKind, LayoutKind } from '../../../../core/keymap-image/canvas'
 import { useToast } from '../../../../ui/toast'
+import { MICRO_LABEL } from '../../../../ui/micro-label'
 
 const errMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err)
@@ -20,9 +21,6 @@ export type ExportPanelProps = {
   draft: EditorDraft
   onClose: () => void
 }
-
-const MICRO_LABEL =
-  'font-mono font-semibold text-[8.5px] leading-none uppercase tracking-[.06em] text-fg-subtler'
 
 export function ExportPanel({ layers, draft, onClose }: ExportPanelProps) {
   const toast = useToast()

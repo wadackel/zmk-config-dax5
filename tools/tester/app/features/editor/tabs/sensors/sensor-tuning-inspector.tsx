@@ -11,7 +11,7 @@ import {
 } from '../../../../core/sensor-hints'
 import { Button } from '../../../../ui/button'
 import { CommittingTextInput } from '../../../../ui/field'
-import { SensorsIcon } from '../../../../features/editor/shell/nav-icons'
+import { SensorsIcon } from '../../../../ui/nav-icons'
 
 const MSC_PERIOD_MS = 16 // enc_scroll.tap-ms must be ≥ this for scroll events to fire.
 const TAP_MS_MAX = 80

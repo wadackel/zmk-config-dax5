@@ -1,11 +1,11 @@
-import { createContext, useContext, useReducer, type Dispatch } from 'hono/jsx'
+import { createContext, useContext, useReducer } from 'hono/jsx'
 import type { JSX } from 'hono/jsx/jsx-runtime'
 import { initialState, reducer } from './reducer'
 import type { EditorAction, EditorState } from './types'
 
 type EditorContextValue = {
   state: EditorState
-  dispatch: Dispatch<EditorAction>
+  dispatch: (action: EditorAction) => void
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)

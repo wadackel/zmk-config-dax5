@@ -1,6 +1,6 @@
 import type { JSX } from 'hono/jsx'
-import type { EditorTab } from '../../core/editor-state/types'
-import type { LayersIcon } from './nav-icons'
+import type { EditorTab } from '../../../core/editor-state/types'
+import type { LayersIcon } from '../../../ui/nav-icons'
 
 /**
  * Icon-component reference (not a JSX element). Storing `<LayersIcon />`

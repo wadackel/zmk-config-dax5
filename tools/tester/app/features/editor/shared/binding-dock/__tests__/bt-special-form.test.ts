@@ -23,10 +23,10 @@ describe('BT special form roundtrip', () => {
   })
 
   it('every BT_SEL N value roundtrips', () => {
-    for (const n of [0, 1, 2, 3, 4]) {
-      const v = `BT_SEL_${n}` as const
+    const values = ['BT_SEL_0', 'BT_SEL_1', 'BT_SEL_2', 'BT_SEL_3', 'BT_SEL_4'] as const
+    values.forEach((v, n) => {
       expect(btOptionToTokens(v)).toEqual(['&bt', 'BT_SEL', String(n)])
       expect(btTokensToOption(['&bt', 'BT_SEL', String(n)])).toBe(v)
-    }
+    })
   })
 })

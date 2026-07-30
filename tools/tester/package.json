@@ -19,6 +19,7 @@
     "@hono/vite-ssg": "^0.3.3",
     "@tailwindcss/vite": "^4",
     "@types/diff": "^7.0.0",
+    "@types/node": "^26.1.1",
     "jsdom": "^26.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",

@@ -11,10 +11,10 @@ import {
   MouseGesturesIcon,
   SensorsIcon,
   TesterIcon,
-} from '../features/editor/shell/nav-icons'
+} from '../ui/nav-icons'
 import { EditorProvider, useEditor } from '../core/editor-state/context'
 import { fetchKeymap } from '../core/editor-state/io'
-import { ModalStackProvider, useModalStack } from '../core/editor-state/modal-stack'
+import { ModalStackProvider, useModalStack } from '../ui/modal-stack'
 import { parseKeymap } from '../core/keymap-dt/parse'
 import type { EditorDraft, EditorTab } from '../core/editor-state/types'
 import { BehaviorsTab } from '../features/editor/tabs/behaviors/behaviors-tab'

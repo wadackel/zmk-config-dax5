@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'hono/jsx'
-import { TesterIcon } from '../features/editor/shell/nav-icons'
+import { TesterIcon } from '../ui/nav-icons'
 import { getBoard } from '../boards/active'
 import { KEYS } from '../core/layout'
 import type { KeyDef } from '../core/layout'
@@ -7,14 +7,12 @@ import { resolveKeyboardEvent, resolveMouseEvent } from '../core/keymap-input'
 import { createInitialState, getProgress } from '../core/tester-state'
 import type { TestState, KeyState, EventLogEntry } from '../core/tester-state'
 import { CHATTER_THRESHOLD_MS, detectChattering } from '../core/chattering'
+import { MICRO_LABEL } from '../ui/micro-label'
 
 const LOG_MAX = 100
 const CELL_SIZE = 54
 const CELL_GAP = 7
 const HALF_OFFSET = -(CELL_SIZE + CELL_GAP) / 2
-
-const MICRO_LABEL =
-  "font-mono font-semibold text-[8.5px] leading-none uppercase tracking-[.09em] text-fg-subtler"
 
 type GridPos = { col: number; row: number; halfCol: boolean; halfRow: boolean }
 
@@ -746,7 +744,7 @@ export default function KeyboardTester() {
         >
           <div
             class="inline-grid mx-auto"
-            style={`grid-template-columns:repeat(16,${CELL_SIZE}px);grid-auto-rows:${CELL_SIZE}px;gap:${CELL_GAP}px;`}
+            style={`grid-template-columns:repeat(${getBoard().grid.testerGridInterleaveCols},${CELL_SIZE}px);grid-auto-rows:${CELL_SIZE}px;gap:${CELL_GAP}px;`}
           >
             {KEYS.map((keyDef) => (
               <GridKeyCell

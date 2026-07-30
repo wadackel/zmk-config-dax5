@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useId, useRef } from 'hono/jsx'
 import type { Child } from 'hono/jsx'
-import { useModalStack } from '../core/editor-state/modal-stack'
+import { useModalStack } from './modal-stack'
 
 export type DialogSize = 'sm' | 'md' | 'lg' | 'xl'
 

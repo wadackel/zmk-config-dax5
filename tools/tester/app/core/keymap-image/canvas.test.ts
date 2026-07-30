@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { GEOMETRY, renderKeymapPng } from './canvas'
+import { geometry, renderKeymapPng } from './canvas'
 import type { EditorDraft } from '../editor-state/types'
 import type { KeyDef } from '../layout'
 
@@ -139,9 +139,9 @@ describe('renderKeymapPng', () => {
       bg: 'light',
       keys,
     })
-    const expectedW = GEOMETRY.LAYER_W + GEOMETRY.OUTER_PAD * 2
-    const expectedH =
-      GEOMETRY.OUTER_PAD * 2 + 2 * GEOMETRY.LAYER_TOTAL_H + 1 * GEOMETRY.LAYER_GAP
+    const g = geometry()
+    const expectedW = g.LAYER_W + g.OUTER_PAD * 2
+    const expectedH = g.OUTER_PAD * 2 + 2 * g.LAYER_TOTAL_H + 1 * g.LAYER_GAP
     expect(lastCanvas).toEqual({ width: expectedW * 2, height: expectedH * 2 })
   })
 
@@ -153,8 +153,9 @@ describe('renderKeymapPng', () => {
       bg: 'light',
       keys,
     })
-    const expectedW = GEOMETRY.OUTER_PAD * 2 + 2 * GEOMETRY.LAYER_W + 1 * GEOMETRY.GRID_COL_GAP
-    const expectedH = GEOMETRY.OUTER_PAD * 2 + 1 * GEOMETRY.LAYER_TOTAL_H
+    const g = geometry()
+    const expectedW = g.OUTER_PAD * 2 + 2 * g.LAYER_W + 1 * g.GRID_COL_GAP
+    const expectedH = g.OUTER_PAD * 2 + 1 * g.LAYER_TOTAL_H
     expect(lastCanvas).toEqual({ width: expectedW * 2, height: expectedH * 2 })
   })
 
@@ -226,8 +227,8 @@ describe('renderKeymapPng', () => {
       bg: 'light',
       keys,
     })
-    const expectedH =
-      GEOMETRY.OUTER_PAD * 2 + 1 * GEOMETRY.LAYER_TOTAL_H
+    const g = geometry()
+    const expectedH = g.OUTER_PAD * 2 + 1 * g.LAYER_TOTAL_H
     expect(lastCanvas?.height).toBe(expectedH * 2)
   })
 

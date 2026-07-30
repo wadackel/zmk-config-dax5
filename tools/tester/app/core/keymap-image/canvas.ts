@@ -1,3 +1,4 @@
+import { getBoard } from '../../boards/active'
 import type { EditorDraft } from '../editor-state/types'
 import type { BindingChain } from '../keymap-dt/types'
 import type { KeyDef } from '../layout'
@@ -66,17 +67,36 @@ const PALETTES: Record<BgKind, Palette> = {
 const UNIT = 64
 const KEY_SIZE = 56
 const KEY_OFFSET = 4
-const RIGHT_X_OFFSET = 8.5
-const LEFT_W = (6.5 + 1) * UNIT
-const RIGHT_W = (15 - 8.5 + 1) * UNIT
 const HALVES_GAP = 32
-const LAYER_W = LEFT_W + HALVES_GAP + RIGHT_W
-const LAYER_H = (3 + 1) * UNIT
 const BAND_H = 28
-const LAYER_TOTAL_H = LAYER_H + BAND_H
 const LAYER_GAP = 24
 const OUTER_PAD = 32
 const GRID_COL_GAP = 24
+
+// Same geometry contract as the editor's KeyboardGrid: row/column extents come
+// from the active board profile. Read at call time rather than cached at module
+// load, mirroring `sensor-hints.ts` — KeyboardGrid re-reads `getBoard()` on every
+// render, so a cached copy here would leave the exported PNG on a stale board's
+// geometry after a `setBoardForTest` swap while the on-screen grid already moved.
+function rightXOffset(): number {
+  return getBoard().grid.rightXOffset
+}
+function leftW(): number {
+  return (getBoard().grid.leftHalfUnits + 1) * UNIT
+}
+function rightW(): number {
+  const grid = getBoard().grid
+  return (grid.splitBoundary - grid.rightXOffset + 1) * UNIT
+}
+function layerW(): number {
+  return leftW() + HALVES_GAP + rightW()
+}
+function layerH(): number {
+  return getBoard().grid.rowCount * UNIT
+}
+function layerTotalH(): number {
+  return layerH() + BAND_H
+}
 
 const FONT_SANS = "'Instrument Sans', system-ui, -apple-system, sans-serif"
 const FONT_MONO = "'JetBrains Mono', ui-monospace, monospace"
@@ -217,14 +237,16 @@ function drawLayer(
   keys: KeyDef[],
   palette: Palette,
 ) {
-  drawLayerBand(ctx, x, y, LAYER_W, layerIdx, layerName, palette)
+  drawLayerBand(ctx, x, y, layerW(), layerIdx, layerName, palette)
 
+  const rightOffset = rightXOffset()
+  const leftWidth = leftW()
   const boardY = y + BAND_H
   for (const k of keys) {
     const isLeft = k.side === 'left'
     const localX = isLeft
       ? k.x * UNIT + KEY_OFFSET
-      : (k.x - RIGHT_X_OFFSET) * UNIT + KEY_OFFSET + LEFT_W + HALVES_GAP
+      : (k.x - rightOffset) * UNIT + KEY_OFFSET + leftWidth + HALVES_GAP
     const localY = k.y * UNIT + KEY_OFFSET
     const chain = bindings[k.index]
     const display = chain
@@ -253,14 +275,14 @@ function roundRect(
 
 function computeCanvasSize(layout: LayoutKind, n: number): { w: number; h: number } {
   if (layout === 'stack') {
-    const w = LAYER_W + OUTER_PAD * 2
-    const h = OUTER_PAD * 2 + n * LAYER_TOTAL_H + (n - 1) * LAYER_GAP
+    const w = layerW() + OUTER_PAD * 2
+    const h = OUTER_PAD * 2 + n * layerTotalH() + (n - 1) * LAYER_GAP
     return { w, h }
   }
   const cols = 2
   const rows = Math.ceil(n / cols)
-  const w = OUTER_PAD * 2 + cols * LAYER_W + (cols - 1) * GRID_COL_GAP
-  const h = OUTER_PAD * 2 + rows * LAYER_TOTAL_H + (rows - 1) * LAYER_GAP
+  const w = OUTER_PAD * 2 + cols * layerW() + (cols - 1) * GRID_COL_GAP
+  const h = OUTER_PAD * 2 + rows * layerTotalH() + (rows - 1) * LAYER_GAP
   return { w, h }
 }
 
@@ -271,15 +293,15 @@ function layerPosition(
   if (layout === 'stack') {
     return {
       x: OUTER_PAD,
-      y: OUTER_PAD + slot * (LAYER_TOTAL_H + LAYER_GAP),
+      y: OUTER_PAD + slot * (layerTotalH() + LAYER_GAP),
     }
   }
   const cols = 2
   const col = slot % cols
   const row = Math.floor(slot / cols)
   return {
-    x: OUTER_PAD + col * (LAYER_W + GRID_COL_GAP),
-    y: OUTER_PAD + row * (LAYER_TOTAL_H + LAYER_GAP),
+    x: OUTER_PAD + col * (layerW() + GRID_COL_GAP),
+    y: OUTER_PAD + row * (layerTotalH() + LAYER_GAP),
   }
 }
 
@@ -332,14 +354,16 @@ export async function renderKeymapPng(args: RenderKeymapArgs): Promise<Blob> {
 }
 
 /** Exposed for tests only — allows the test to compute expected canvas dimensions. */
-export const GEOMETRY = {
-  LAYER_W,
-  LAYER_H,
-  LAYER_TOTAL_H,
-  LAYER_GAP,
-  OUTER_PAD,
-  GRID_COL_GAP,
-  BAND_H,
-  UNIT,
-  KEY_SIZE,
+export function geometry() {
+  return {
+    LAYER_W: layerW(),
+    LAYER_H: layerH(),
+    LAYER_TOTAL_H: layerTotalH(),
+    LAYER_GAP,
+    OUTER_PAD,
+    GRID_COL_GAP,
+    BAND_H,
+    UNIT,
+    KEY_SIZE,
+  }
 }

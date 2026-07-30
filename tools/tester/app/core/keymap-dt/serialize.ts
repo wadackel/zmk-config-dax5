@@ -7,7 +7,7 @@
 //   - Row 0 (12 keys): L c0..c5 + R c8..c13 (c6 and c7 are empty)
 //   - Row 1 (12 keys): L c0..c5 + R c8..c13 (c6 and c7 are empty)
 //   - Row 2 (14 keys): L c0..c6 + R c7..c13 (SW22/SW1 sit on R2 as outer cols)
-//   - Row 3 (8 keys):  L c2..c6 + R c7,c8,c11  (c0..c1 and c9,c10,c12,c13 empty)
+//   - Row 3 (6 keys):  L c3..c6 + R c7,c8      (c0..c2 and c9..c13 empty)
 // - Cell separator: 3 spaces within a side, LR_GAP between L (c0..c6) and R (c7..c13).
 // - Column width: max content width across all rows that populate that column.
 //
@@ -44,7 +44,10 @@ export function serializeLayer(layer: LayerData): string {
   lines.push(`${INDENT_BODY}bindings = <`)
   lines.push(serializeBindingsGrid(layer.bindings))
   lines.push(`${INDENT_BODY}>;`)
-  if (layer.sensorBindings) {
+  // encoderCount === 0 would produce `sensor-bindings = ;` which is not valid
+  // devicetree — skip the property entirely so a board with no encoders still
+  // round-trips cleanly.
+  if (layer.sensorBindings && encoderCount > 0) {
     lines.push('')
     const chains: string[] = []
     for (let i = 0; i < encoderCount; i++) {

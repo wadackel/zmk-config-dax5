@@ -23,7 +23,7 @@ export const grid: BoardGrid = {
   rightColCount: 7,
   rowLeftCols: ROW_LEFT_COLS,
   rowRightColsAbs: ROW_RIGHT_COLS_ABS,
-  leftHalfUnits: 7,
+  leftHalfUnits: 6,
   rightXOffset: 9,
   splitBoundary: 15,
   testerGridInterleaveCols: 16,

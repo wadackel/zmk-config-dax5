@@ -1,7 +1,7 @@
+import path from 'node:path'
 import ssg from '@hono/vite-ssg'
 import tailwindcss from '@tailwindcss/vite'
 import honox from 'honox/vite'
-import path from 'node:path'
 import { defineConfig } from 'vite'
 import { zmkLayout } from './codegen/vite-plugin'
 import { devOnlyRoutes } from './vite-plugins/dev-only-routes'

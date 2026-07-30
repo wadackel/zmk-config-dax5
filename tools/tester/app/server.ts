@@ -1,5 +1,7 @@
 import { createApp } from 'honox/server'
 
+type HonoxRoutes = NonNullable<Parameters<typeof createApp>[0]>['ROUTES']
+
 // In production builds (`pnpm build`), exclude the dev-only `/api/**` server
 // endpoints. The deployed GitHub Pages bundle is static and has no Node
 // runtime to back these endpoints. The `/` route is shared (editor in dev,
@@ -35,6 +37,6 @@ const ROUTES = isProd
       { eager: true },
     )
 
-const app = createApp({ ROUTES })
+const app = createApp({ ROUTES: ROUTES as HonoxRoutes })
 
 export default app

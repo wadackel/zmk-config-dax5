@@ -1,6 +1,6 @@
 import { useState } from 'hono/jsx'
 import { CommittingTextInput } from '../../../../ui/field'
-import { CombosIcon } from '../../shell/nav-icons'
+import { CombosIcon } from '../../../../ui/nav-icons'
 import { BindingDock } from '../../shared/binding-dock/binding-inspector'
 import type { BindingChain, ComboEntry, LayerData } from '../../../../core/keymap-dt/types'
 

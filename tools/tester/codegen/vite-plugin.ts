@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Plugin } from 'vite'
+import { keymapSource } from '../app/boards/dax5/keymap-source'
 import type { BindingChain } from '../app/core/keymap-dt/types'
 import { isReloadSuppressed } from './reload-guard'
 import { resolveEncoders, resolveKeys, type ParsedBinding } from './resolve'
@@ -8,7 +9,7 @@ import { resolveEncoders, resolveKeys, type ParsedBinding } from './resolve'
 const VIRTUAL_MODULE_ID = 'virtual:zmk-layout'
 const RESOLVED_ID = '\0' + VIRTUAL_MODULE_ID
 
-interface DaxLayout {
+interface PhysicalLayoutJson {
   layouts: {
     default_layout: {
       layout: Array<{ x: number; y: number }>
@@ -30,8 +31,8 @@ export function zmkLayout(): Plugin {
   let repoRoot: string
 
   const getSourceFiles = () => ({
-    jsonPath: path.join(repoRoot, 'config/dax5.json'),
-    keymapPath: path.join(repoRoot, 'config/dax5.keymap'),
+    jsonPath: path.join(repoRoot, keymapSource.jsonRelative),
+    keymapPath: path.join(repoRoot, keymapSource.keymapRelative),
   })
 
   const generateModule = async () => {
@@ -42,14 +43,14 @@ export function zmkLayout(): Plugin {
     const { parseKeymap } = await import('../app/core/keymap-dt/parse')
     const { matrix: dax5Matrix } = await import('../app/boards/dax5/matrix')
     const { jsonPath, keymapPath } = getSourceFiles()
-    const layout = JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as DaxLayout
+    const layout = JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as PhysicalLayoutJson
     const keymapContent = fs.readFileSync(keymapPath, 'utf-8')
 
     const physicalLayout = layout.layouts.default_layout.layout
     const parsed = parseKeymap(keymapContent)
-    const defaultLayer = parsed.layers.find((l) => l.name === 'default_layer')
+    const defaultLayer = parsed.layers.find((l) => l.name === keymapSource.defaultLayerName)
     if (!defaultLayer) {
-      throw new Error('zmkLayout: default_layer not found in keymap')
+      throw new Error(`zmkLayout: ${keymapSource.defaultLayerName} not found in keymap`)
     }
     // A drift between the physical layout (dax5.json) and the matrix TRANSFORM
     // silently produces mis-indexed keys, so fail the build before resolveKeys

@@ -7,6 +7,53 @@
 
 import { getBoard } from '../../boards/active'
 
+type DraftEntryLike = {
+  props: readonly { name: string; value: string }[]
+}
+
+// Real ZMK behaviours never exceed 2 cells; the ceiling only has to be loose
+// enough not to reject a legitimate keymap.
+const MAX_BINDING_CELLS = 8
+
+/**
+ * Extracts `N` from a `#binding-cells = <N>;` property when present. Returns
+ * null when the property is missing or the value cannot be parsed as a bare
+ * angle-wrapped integer — the caller then falls back to a heuristic.
+ */
+export function parseBindingCells(
+  props: readonly { name: string; value: string }[],
+): number | null {
+  const prop = props.find((p) => p.name === '#binding-cells')
+  if (!prop) return null
+  const match = /^\s*<\s*(\d+)\s*>\s*$/.exec(prop.value)
+  if (!match) return null
+  const cells = Number(match[1])
+  // The value reaches `Array.from({ length: cells })` in fillArgTypes, so a
+  // fat-fingered `<100000000>` in the keymap would hang the editor and
+  // anything past 2^32 would throw RangeError. Out-of-range reads as
+  // unparseable and falls back to the heuristic.
+  if (cells > MAX_BINDING_CELLS) return null
+  return cells
+}
+
+/**
+ * arity resolution shared by the picker and by `lint.ts`. `#binding-cells`
+ * wins when parseable; otherwise the fallback reflects ZMK convention:
+ * behaviors that expose a `bindings = <..>, <..>;` property act like `&mt`
+ * (arity 2), everything else assumes arity 0.
+ */
+export function defaultArityFor(
+  kind: 'macro' | 'behavior' | 'gesture',
+  entry: DraftEntryLike & { bindings?: readonly unknown[] },
+): number[] {
+  const cells = parseBindingCells(entry.props)
+  if (cells !== null) return [cells]
+  if (kind === 'behavior' && Array.isArray(entry.bindings) && entry.bindings.length > 0) {
+    return [2]
+  }
+  return [0]
+}
+
 export type BehaviorArgType =
   | 'keycode'
   | 'layer'
@@ -133,20 +180,101 @@ const mouseGestures: BehaviorEntry[] = [
 
 // Board-agnostic behaviours only. Board profiles inject their own customs via
 // `getBoard().behaviors.customs` — access the merged list through
-// `getAllBehaviors()` in `behavior-registry.ts`.
+// `allBehaviors()`, which is the single source of truth used by lookup /
+// search here as well as by `baseArityTable()` in `behavior-registry.ts`.
 export const BEHAVIORS: BehaviorEntry[] = [...builtins, ...mouseGestures]
 
-function withBoardCustoms(): BehaviorEntry[] {
+export function allBehaviors(): BehaviorEntry[] {
   return [...BEHAVIORS, ...getBoard().behaviors.customs]
 }
 
-export function getBehavior(token: string): BehaviorEntry | undefined {
-  const needle = token.startsWith('&') ? token : `&${token}`
-  return withBoardCustoms().find((b) => b.token === needle)
+// Editor-draft nodes surfaced as picker entries. Anything the user defines in
+// the Macros / Behaviors / Mouse-gestures tabs (or that was already in the
+// loaded keymap) needs to show up in the behavior combobox so binding cells
+// can reference it — the static BEHAVIORS list alone can't cover that.
+type DraftForPicker = {
+  macros: ReadonlyArray<{ name: string; props: readonly { name: string; value: string }[] }>
+  behaviors: ReadonlyArray<{
+    name: string
+    props: readonly { name: string; value: string }[]
+    bindings?: readonly unknown[]
+  }>
+  mouseGestures: ReadonlyArray<{
+    kind: 'root' | 'named'
+    name?: string
+    props: readonly { name: string; value: string }[]
+  }>
 }
 
-export function searchBehaviors(query: string): BehaviorEntry[] {
-  const all = withBoardCustoms()
+function fillArgTypes(arity: number): BehaviorArgType[] {
+  return Array.from({ length: arity }, () => 'free')
+}
+
+export function deriveDraftBehaviors(draft: DraftForPicker): BehaviorEntry[] {
+  const entries: BehaviorEntry[] = []
+  for (const m of draft.macros) {
+    const arity = defaultArityFor('macro', m)
+    entries.push({
+      token: `&${m.name}`,
+      label: m.name,
+      group: 'macro',
+      arity,
+      argTypes: fillArgTypes(arity[0] ?? 0),
+    })
+  }
+  for (const b of draft.behaviors) {
+    const arity = defaultArityFor('behavior', b)
+    entries.push({
+      token: `&${b.name}`,
+      label: b.name,
+      group: 'custom',
+      arity,
+      argTypes: fillArgTypes(arity[0] ?? 0),
+    })
+  }
+  for (const g of draft.mouseGestures) {
+    // Root gestures alias the builtin `&zip_mouse_gesture` entry — keeping
+    // named gestures only avoids a duplicate row in the combobox.
+    if (g.kind !== 'named' || !g.name) continue
+    const arity = defaultArityFor('gesture', g)
+    entries.push({
+      token: `&${g.name}`,
+      label: g.name,
+      group: 'custom',
+      arity,
+      argTypes: fillArgTypes(arity[0] ?? 0),
+    })
+  }
+  return entries
+}
+
+// A board profile normally declares its keymap's macros / behaviours as customs
+// too, so the draft-derived entries collide with them. The static entry wins:
+// it carries curated labels and argTypes (`layer` / `keycode`) where the derived
+// one can only fall back to `free`.
+export function withDraft(draft?: DraftForPicker): BehaviorEntry[] {
+  const base = allBehaviors()
+  if (!draft) return base
+  const merged = [...base]
+  const seen = new Set(base.map((b) => b.token))
+  for (const entry of deriveDraftBehaviors(draft)) {
+    // Tracking as we go also collapses draft-internal collisions — a macro and
+    // a custom behaviour can share a label, which would otherwise emit two rows
+    // under the same combobox key.
+    if (seen.has(entry.token)) continue
+    seen.add(entry.token)
+    merged.push(entry)
+  }
+  return merged
+}
+
+export function getBehavior(token: string, draft?: DraftForPicker): BehaviorEntry | undefined {
+  const needle = token.startsWith('&') ? token : `&${token}`
+  return withDraft(draft).find((b) => b.token === needle)
+}
+
+export function searchBehaviors(query: string, draft?: DraftForPicker): BehaviorEntry[] {
+  const all = withDraft(draft)
   const q = query.toLowerCase().trim()
   if (!q) return all
   return all.filter((b) => {

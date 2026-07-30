@@ -14,11 +14,13 @@ import { ArgumentControl } from './argument-control'
 import { BehaviorCombobox } from './behavior-combobox'
 import { BtSpecialForm } from './bt-special-form'
 import { ModifierToggles } from './modifier-toggles'
+import { MICRO_LABEL } from '../../../../ui/micro-label'
 
 const KEYCODE_TOKEN_SET = new Set(KEYCODES.map((k) => k.token))
 
-const MICRO_LABEL =
-  'absolute bottom-full left-0 mb-[6px] whitespace-nowrap font-mono font-semibold text-[8.5px] leading-none uppercase tracking-[.06em] text-fg-subtler'
+// Floats above the associated form control; other MICRO_LABEL call sites
+// (tester, export panel) render inline so positioning stays local here.
+const FLOATING_LABEL = `absolute bottom-full left-0 mb-[6px] whitespace-nowrap ${MICRO_LABEL}`
 
 const CHEVRON =
   'font-mono font-medium text-[13px] leading-none text-fg-subtler shrink-0'
@@ -62,7 +64,7 @@ export function BindingDock({
   argsRef.current = args
   behaviorRef.current = behaviorToken
 
-  const behavior = getBehavior(behaviorToken)
+  const behavior = getBehavior(behaviorToken, state.draft)
   const expectedArity = behavior?.arity?.[0] ?? 0
   const argTypes = behavior?.argTypes ?? []
   const argLabels = behavior?.argLabels
@@ -91,7 +93,7 @@ export function BindingDock({
   const commit = (overrideValue?: string) => {
     if (typeof overrideValue !== 'string') overrideValue = undefined
     const currentBehavior = behaviorRef.current ?? behaviorToken
-    const currentBehaviorEntry = getBehavior(currentBehavior)
+    const currentBehaviorEntry = getBehavior(currentBehavior, state.draft)
     const currentArity = currentBehaviorEntry?.arity?.[0] ?? 0
     const currentArgTypes = currentBehaviorEntry?.argTypes ?? []
     let effectiveArgs = argsRef.current ?? args
@@ -165,7 +167,7 @@ export function BindingDock({
   const onBehaviorChange = (next: string) => {
     setBehaviorToken(next)
     behaviorRef.current = next
-    const nextBehavior = getBehavior(next)
+    const nextBehavior = getBehavior(next, state.draft)
     const nextArity = nextBehavior?.arity?.[0] ?? 0
     const nextArgTypes = nextBehavior?.argTypes ?? []
     const prevArgTypes = behavior?.argTypes ?? []
@@ -295,7 +297,7 @@ export function BindingDock({
                     <>
                       <span class={CHEVRON} aria-hidden="true" key={`ch-mod-${i}`}>+</span>
                       <div class="relative flex-none" key={`mod-${i}`}>
-                        <span class={MICRO_LABEL}>MODIFIERS</span>
+                        <span class={FLOATING_LABEL}>MODIFIERS</span>
                         <ModifierToggles
                           active={keycodeMods}
                           onChange={(nextWraps) => {
@@ -318,7 +320,7 @@ export function BindingDock({
 
       <div class="flex-none flex items-center gap-[14px] pl-[22px] border-l border-[rgba(22,24,29,.08)]">
         <div class="relative hidden md:block">
-          <span class={MICRO_LABEL}>PREVIEW</span>
+          <span class={FLOATING_LABEL}>PREVIEW</span>
           <span
             class="inline-block font-mono font-semibold text-[13.5px] leading-none text-fg px-[11px] py-[6px] rounded-[5px] bg-[rgba(22,24,29,.05)] whitespace-nowrap"
             title="Preview of the chain that will be committed"
