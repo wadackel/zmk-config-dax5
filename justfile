@@ -63,7 +63,7 @@ build-target TARGET="dax5_R": _require-nix
 
     echo "Building: {{TARGET}}"
 
-    west build -s zmk/app -b seeeduino_xiao_ble -d "build/{{TARGET}}" -- \
+    west build -s zmk/app -b xiao_ble//zmk -d "build/{{TARGET}}" -- \
       -DBOARD_ROOT="$PROJECT_ROOT" \
       -DSHIELD="$SHIELD" \
       ${SNIPPET:+-DSNIPPET="$SNIPPET"} \
@@ -78,6 +78,16 @@ build-target TARGET="dax5_R": _require-nix
     else
       echo "Build failed: UF2 file not found"
       exit 1
+    fi
+
+# Run the native_sim tests under tests/ in the ZMK build container (needs Docker)
+test *TESTS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{TESTS}}" ]; then
+      tests/run.sh tests/*/
+    else
+      tests/run.sh {{TESTS}}
     fi
 
 # Launch the local keymap editor (tools/tester) on http://localhost:5173/

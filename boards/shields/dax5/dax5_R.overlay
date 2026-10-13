@@ -1,6 +1,8 @@
 #include "dax5.dtsi"
 #include <input/processors.dtsi>
 #include <dt-bindings/zmk/input_transform.h>
+#include <dt-bindings/zmk/keys.h>
+#include "trackball_processors.dtsi"
 
 &xiao_serial {
   status = "disabled";
@@ -26,24 +28,16 @@
   trackball_listener {
     compatible = "zmk,input-listener";
     device = <&trackball>;
-    input-processors = <&zip_xy_transform (INPUT_TRANSFORM_XY_SWAP | INPUT_TRANSFORM_Y_INVERT)>, <&zip_mouse_gesture>;
+    // The gesture processor picks its profile by layer and stops the pointer by zeroing the
+    // movement, so it needs no override of its own.
+    input-processors = <&tb_pointer>, <&dax_gestures>;
 
     scroll_override {
       layers = <5>;  // SCROLL layer
       input-processors
-        = <&zip_xy_transform (INPUT_TRANSFORM_XY_SWAP | INPUT_TRANSFORM_Y_INVERT)>
+        = <&tb_pointer>
         , <&zip_xy_to_scroll_mapper>
-        , <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>
-        , <&zip_scroll_scaler 1 64>
-        ;
-    };
-
-    mac_gesture_override {
-      layers = <7>;  // MAC_GESTURE layer
-      input-processors
-        = <&zip_xy_transform (INPUT_TRANSFORM_XY_SWAP | INPUT_TRANSFORM_Y_INVERT)>
-        , <&zip_mouse_gesture_mac>
-        , <&zip_xy_scaler 0 1>
+        , <&tb_scroll>
         ;
     };
   };

@@ -27,9 +27,34 @@ nix develop --command just pristine
 - `build/dax5_L.uf2` - 左手側
 - `build/settings_reset.uf2` - 設定リセット用
 
+## テスト（シミュレーター）
+
+`tests/` に、ZMK の native_sim で動かすテストがある。模擬のキー入力とポインター入力を流し、出てくる HID レポートを期待値（`keycode_events.snapshot`）と比べる。
+
+```bash
+just test                       # 全部
+just test tests/combos          # 1 件
+ZMK_TESTS_AUTO_ACCEPT=1 just test tests/combos   # 期待値を書き換える（差分は必ず目で見る）
+ZMK_TESTS_RESYNC=1 just test    # west update のあと
+```
+
+| テスト | 確かめていること |
+|---|---|
+| `esc-lang2` | 親指キーの tap が ESC → LANG2 を出し、hold がレイヤーを切り替える（実行時マクロの既定値がスロット 0 に入る） |
+| `combos` | 実行時 combo の既定値が発火する。`layers` に無いレイヤーが最上位のときは発火しない |
+| `trackball-pointer` / `-fixed` | `tb_pointer` の出力が、置き換え前の `zip_xy_transform (XY_SWAP \| Y_INVERT)` と同じ |
+| `gestures` | `config/gestures.dtsi` の組が、保持しているレイヤーに応じて切り替わる（Gesture → 戻る、MacGesture → Spotlight、何も保持しない → カーソル移動） |
+| `trackball-scroll` / `-fixed` | Scroll レイヤーの出力が、置き換え前の固定の処理と同じ（端数の持ち越しを含む） |
+
+- Docker が要る。ワークスペースを Docker のボリューム（`dax5-zmk-tests`）に写してから実行する。Zephyr と `modules/` は初回だけ写す
+- `-fixed` の 2 件は比較の基準で、対になるテストと期待値が同じであることに意味がある
+- 模擬キー入力（`ZMK_MOCK_PRESS(row, col, ms)`）の `ms` は「次のイベントまでの間隔」。最初のイベントの前にも同じ時間だけ待つ
+
 ## ディレクトリ構造
 
-- `app/` - カスタム ZMK モジュール（os_layer.c, Kconfig）
+- `module/` - 空の CMakeLists.txt / Kconfig。west が Zephyr を `./zephyr` に取得するため、明示しないとこの repo の Zephyr モジュール定義が Zephyr 本体の `zephyr/CMakeLists.txt` を拾ってしまう
+- `tests/` - native_sim のテストと実行スクリプト
+- dax 系で共有する自作モジュール（マウスジェスチャー、OS レイヤー、トラックボールの CPI 設定）は別 repo [`wadackel/zmk-dax-modules`](https://github.com/wadackel/zmk-dax-modules) にあり、`config/west.yml` から SHA で参照する
 - `boards/shields/dax5/` - Shield定義（dtsi, overlay, conf, Kconfig）
 - `config/` - キーマップ（`dax5.keymap`）、`west.yml`、ZMK Studio用 JSON
 - `tools/tester/` - キーマップテスターWebアプリ（Vite + HonoX）
@@ -59,13 +84,27 @@ dax5 は PAW3222 (PixArt) を採用する。PMW3610 とは異なり、ドライ�
 
 `trackball_listener` (`zmk,input-listener`) の input-processors チェーン:
 
-- **default chain** (全レイヤー共通の起点): `<&zip_xy_transform 0>, <&zip_mouse_gesture>`
-  - 物理方向 → ユーザ視点方向への補正を最初に通し、その後マウスジェスチャを判定する
-- **scroll_override** (Scroll レイヤー = 5 のみ): `<&zip_xy_transform 0>, <&zip_xy_to_scroll_mapper>, <&zip_scroll_transform 0>, <&zip_scroll_scaler 1 64>`
-  - `zip_xy_to_scroll_mapper` が X→HWHEEL, Y→WHEEL に変換 (PMW3610 の `scroll-layers` 相当)
-  - `zip_scroll_scaler 1 N` の分母 N で粗さ調整 (大きいほどゆっくり)
-- **mac_gesture_override** (MAC_GESTURE レイヤー = 7): `<&zip_xy_transform 0>, <&zip_mouse_gesture_mac>, <&zip_xy_scaler 0 1>`
-  - 末尾 `zip_xy_scaler 0 1` で MAC_GESTURE 中はカーソル相対移動を 0 にし、ジェスチャ判定中の意図せぬマウス移動を抑止する
+- **base chain**: `<&tb_pointer>, <&dax_gestures>`
+  - `tb_pointer` が物理方向 → ユーザ視点方向への補正と倍率を担う（実行時に調整できる。定義は `trackball_processors.dtsi`）
+  - `dax_gestures` がマウスジェスチャーを判定する（定義は `config/gestures.dtsi`、モジュールは `zmk-dax-modules`）
+- **scroll_override** (Scroll レイヤー = 5): `<&tb_pointer>, <&zip_xy_to_scroll_mapper>, <&tb_scroll>`
+  - `zip_xy_to_scroll_mapper` が X→HWHEEL, Y→WHEEL に変換する
+  - `tb_scroll` が向きの反転と粗さ（既定 1/64、分母が大きいほどゆっくり）を担う
+
+`tb_pointer` は反転を「入替の前の軸」で判定する。`xy-swap-enabled; x-invert;` が、以前の `zip_xy_transform (XY_SWAP | Y_INVERT)` と同じ結果になる。Scroll レイヤーのチェーンでも先頭にいるので、その倍率はスクロールにも掛かる。
+
+#### マウスジェスチャー
+
+base chain に `dax,input-processor-gesture` を 1 つだけ置き、どのジェスチャーの組を使うかはアクティブなレイヤーで選ぶ（`config/gestures.dtsi`）。
+
+| 組 | 有効になる条件 | 内容 |
+|---|---|---|
+| `browse` | Gesture レイヤー（8）を保持 | 左右 → 戻る・進む、上下 → 先頭・末尾 |
+| `mac` | MacGesture レイヤー（7）を保持 | 上下左右 → デスクトップ表示、Mission Control、App Exposé、Spotlight |
+
+- 組が有効な間、カーソルは止まる（`suppress-movement`）
+- Gesture レイヤーと MacGesture レイヤーは、キーを 1 つも変えない。ジェスチャーを有効にする目印としてだけ存在する。Mouse レイヤーの `&mo 8` / `&mo 7` で保持する
+- ジェスチャー 1 つにつき behavior は 1 つ
 
 #### Transform flag の意味
 
@@ -96,11 +135,15 @@ CPI は DTS の `res-cpi` プロパティで設定 (`res-cpi = <1000>` で PMW36
 
 ```c
 // config/dax5.keymap
-enc_scroll: encoder_scroll {
+rsr_scroll: rsr_scroll {
+  compatible = "zmk,behavior-runtime-sensor-rotate";
   tap-ms = <20>;  // ✅ OK: 16ms以上
   // tap-ms = <10>;  // ❌ NG: スクロールが一切動かなくなる
+  // tap-ms を書かない  // ❌ NG: binding の既定値は 5
 };
 ```
+
+rsr の behavior は `&kp` を割り当てたもの（`rsr_vol` / `rsr_bri`）も含め、すべて `tap-ms = <20>` にする。設定アプリは割当を変えるとき、そのレイヤーの現在の `tap_ms` を引き継いで送るので、既定 5 のままのレイヤーに後から `&msc` を割り当てると無反応になる。
 
 **理由:**
 - `&msc`（スクロール）の内部イベント周期は**16ms**
@@ -167,45 +210,27 @@ sensors: sensors {
 
 ### ZMK で OS を自動検出できるか？
 
-**できない。** ZMK v0.3 に OS 自動検出機能は存在しない。USB HID descriptor 分析（QMK の `os_detection`）も
+**できない。** ZMK 本体に OS 自動検出機能は存在しない（main 系でも同じ）。USB HID descriptor 分析（QMK の `os_detection`）も
 BLE GATT 経由の OS 識別も未実装。BLE profile ベースのマッピングが唯一の手段。
 
-現状この仕組みは未使用。BLE profile 切り替えに連動して overlay レイヤーをアクティブ化するカスタム
-モジュール `app/src/os_layer.c` と Kconfig `CONFIG_ZMK_OS_LAYER` は将来の再利用に備えて温存して
-あるが、`dax5_R.conf` には `CONFIG_ZMK_OS_LAYER=y` を入れていないため `os_layer.c` はビルドから
-除外される。再有効化したい場合は `dax5_R.conf` に `CONFIG_ZMK_OS_LAYER=y` と
-`CONFIG_ZMK_OS_LAYER_PROFILE_N=<layer>` を加え、keymap に対応するオーバーレイレイヤーを書き戻せばよい。
+dax5 はこの仕組みを使っていない。使うなら `zmk-dax-modules` の `CONFIG_ZMK_OS_LAYER=y` と
+`CONFIG_ZMK_OS_LAYER_PROFILE_N=<layer>` を `dax5_R.conf` に加え、keymap に対応するオーバーレイレイヤーを足す（dax6 が実例）。
 
-### CI が `led_red alias not found` で失敗する
+### ZMK 本体は cormoran fork（main 系）
 
-`zmk-rgbled-widget` の `revision: main` が更新され ZMK v0.3 互換性が壊れた可能性。
-`config/west.yml` のリビジョンを ZMK v0.3 互換の commit hash にピン留めすること。
+`config/west.yml` の `zmk` は upstream ではなく `cormoran/zmk` の `main+custom-studio-protocol` を SHA で固定している。ZMK main（Zephyr 4.1）に custom Studio RPC を足したもので、設定アプリ daxial が使う実行時設定のモジュールはこの RPC に載る。構成は dax6 と同じで、判断根拠は dax6 側の ADR-0012 にある。
 
-### zmk-rgbled-widget の互換性
+- ボード名は `xiao_ble//zmk`（v0.3 系の `seeeduino_xiao_ble` から変わった）
+- 外部モジュールはすべて SHA で固定する。`revision: main` や tag の直当ては、将来の更新で壊れるので使わない
+- v0.3 系へ戻すなら `zmk-rgbled-widget` は `a3510c9d`（`seeeduino_xiao_ble` に対応する最後の版）
 
-ZMK v0.3 は `seeeduino_xiao_ble` ボード名を使用する。`zmk-rgbled-widget` は
-2026-02-16 に ZMK main 用の `xiao_ble_zmk` に移行し、v0.3 互換性を削除した。
-`revision: main` で CI が壊れるため、`config/west.yml` でピン留めする:
+### Nix のビルド環境で詰まりやすい点
 
-```yaml
-- name: zmk-rgbled-widget
-  remote: caksoylar
-  revision: a3510c9d  # Last version compatible with ZMK v0.3 (seeeduino_xiao_ble)
-```
+- **SDK は 0.17.0 に固定している。** Zephyr 4.1 が想定する版で、zephyr-nix の `sdk-0_17`（0.17.4）は同梱の picolibc のロック型が変わっており `locks.c` がコンパイルできない
+- **`nixpkgs` は更新しない。** 新しい nixpkgs は `python310` を持たず、zephyr-nix の評価が darwin で失敗する。`nix flake update` は `zephyr` と `zephyr-nix` だけを対象にする
+- **nanopb の生成には protobuf と grpcio-tools が要る。** Zephyr 4.1 の requirements に含まれないので `pythonEnv` に足している
 
-ZMK を v0.3 から main に移行する際は、ボード名も `xiao_ble//zmk` に変更が必要。
-
-### zmk-driver-paw3222 の互換性
-
-`sekigon-gonnoc/zmk-driver-paw3222` は ZMK main を想定して開発されているが、現時点 (2026-06-15)
-の最新 main (`df652881`) は ZMK v0.3 でビルド可能。`revision: main` 直当ては rgbled-widget と
-同じく将来の破壊リスクがあるため `config/west.yml` で SHA をピン留めする:
-
-```yaml
-- name: zmk-driver-paw3222
-  remote: sekigon-gonnoc
-  revision: df652881  # Last version compatible with ZMK v0.3 (PAW3222 driver, verified 2026-06-15)
-```
+### zmk-driver-paw3222
 
 PAW3222 ドライバは raw `INPUT_REL_X` / `INPUT_REL_Y` のみ発行する設計のため、orientation /
 invert / scroll-layers は **driver Kconfig ではなく ZMK input-processor** で実装する。
@@ -233,6 +258,27 @@ invert / scroll-layers は **driver Kconfig ではなく ZMK input-processor** �
 - `tap-ms`が長すぎる（100msなど）
 - → 20msに設定
 
+## 実行時設定（daxial）
+
+`dax5_R` に設定アプリ [daxial](https://wadackel.github.io/daxial/) から USB で接続すると、再ビルドなしで設定を変えられる。左右とも USB でつなぐとポートが 2 つ出るが、応答するのは右手側（central）だけ。
+
+| 機能 | 仕組み（custom subsystem の識別子） |
+|---|---|
+| キー割当・レイヤー名 | 公式 ZMK Studio の RPC |
+| エンコーダーの回転割当（レイヤー別・方向別） | `zmk-behavior-runtime-sensor-rotate`（`cormoran_rsr`） |
+| トラックボールの向き・倍率、Scroll レイヤーの向き・粗さ | `zmk-module-runtime-input-processor`（`cormoran_rip`） |
+| combo | `zmk-feature-runtime-combo`（`cormoran__runtime_combo`） |
+| マクロ | `zmk-feature-runtime-macro`（`cormoran__runtime_macro`） |
+| マウスジェスチャー | `zmk-dax-modules`（`dax_gesture`） |
+| PAW3222 の CPI | `zmk-dax-modules`（`dax_trackball`） |
+
+- **keymap / overlay に書いた値は既定値で、アプリで保存した値が優先される。** 既定値を書き換えてフラッシュしても、保存済みの項目には反映されない。既定値に戻すにはアプリの reset か `settings_reset.uf2`（BLE のボンドも消える）
+- combo は `config/dax5.keymap` の `runtime_combo_defaults` に書く。`zmk,combos` のノードは無い
+- マクロは実行時マクロ（`&rmacro <slot>`）で、`zmk,behavior-macro` のノードは無い。`&esc_lang2_with_layer 3 0` の `0` がスロット番号。既定値のスロット番号はビルド時に決まらず、最初に作られたときの空きスロットに入る。ESC / LANG2 のキーが効かないときは、アプリのマクロ一覧で `esc_lang2` の番号を確かめる
+- **起動時に出る Studio の通知は、合計 256 バイトまでしか溜められない**（`CONFIG_ZMK_STUDIO_RPC_TX_BUF_SIZE`）。満杯になるとキー入力ごとキーボードが止まる。既定値のマクロは起動のたびに 1 個あたり通知 2 件を出すので、既定値のマクロを増やすときはバッファも広げる
+- 全レイヤーの `sensor-bindings` は rsr の behavior（`rsr_scroll` / `rsr_scroll_rev` / `rsr_hscroll` / `rsr_vol` / `rsr_bri`）を指す。rsr 以外にしたレイヤーはアプリから編集できない
+- 実行時に変えられないもの: エンコーダーの `triggers-per-rotation`、hold-tap のタイミング
+
 ## 現在のレイヤー構成
 
 | 番号 | 名前 | 説明 |
@@ -244,13 +290,14 @@ invert / scroll-layers は **driver Kconfig ではなく ZMK input-processor** �
 | 4 | Mouse | マウスボタン |
 | 5 | Scroll | スクロールモード |
 | 6 | Device | BLE設定 |
-| 7 | MacGesture | macOS用マウスジェスチャ (Mouse layerから遷移) |
+| 7 | MacGesture | macOS用マウスジェスチャの目印 (Mouse layerから保持) |
+| 8 | Gesture | 通常のマウスジェスチャの目印 (Mouse layerから保持) |
 
 ## CI / デプロイ
 
 ### ファームウェアビルド
 - `.github/workflows/build.yml` - push/PR/手動トリガーで実行
-- ZMK の reusable workflow（`zmkfirmware/zmk/.github/workflows/build-user-config.yml@v0.3.0`）を使用
+- ZMK の reusable workflow（`zmkfirmware/zmk/.github/workflows/build-user-config.yml` を upstream main の SHA で固定）を使用。workflow 自体は upstream のものだが、ビルドする ZMK は `config/west.yml` が指す cormoran fork
 - ビルド対象は `build.yaml` で定義（`build.yml` と混同しないこと）
 
 ### テスター (tools/tester)
