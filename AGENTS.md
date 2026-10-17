@@ -54,7 +54,7 @@ ZMK_TESTS_RESYNC=1 just test    # west update のあと
 
 - `module/` - 空の CMakeLists.txt / Kconfig。west が Zephyr を `./zephyr` に取得するため、明示しないとこの repo の Zephyr モジュール定義が Zephyr 本体の `zephyr/CMakeLists.txt` を拾ってしまう
 - `tests/` - native_sim のテストと実行スクリプト
-- dax 系で共有する自作モジュール（マウスジェスチャー、OS レイヤー、トラックボールの CPI 設定）は別 repo [`wadackel/zmk-dax-modules`](https://github.com/wadackel/zmk-dax-modules) にあり、`config/west.yml` から SHA で参照する
+- dax 系で共有する自作モジュール（マウスジェスチャー、OS レイヤー、トラックボールの CPI 設定、実行時 combo）は別 repo [`wadackel/zmk-dax-modules`](https://github.com/wadackel/zmk-dax-modules) にあり、`config/west.yml` から SHA で参照する
 - `boards/shields/dax5/` - Shield定義（dtsi, overlay, conf, Kconfig）
 - `config/` - キーマップ（`dax5.keymap`）、`west.yml`、ZMK Studio用 JSON
 - `tools/tester/` - キーマップテスターWebアプリ（Vite + HonoX）
@@ -221,6 +221,7 @@ dax5 はこの仕組みを使っていない。使うなら `zmk-dax-modules` �
 `config/west.yml` の `zmk` は upstream ではなく `cormoran/zmk` の `main+custom-studio-protocol` を SHA で固定している。ZMK main（Zephyr 4.1）に custom Studio RPC を足したもので、設定アプリ daxial が使う実行時設定のモジュールはこの RPC に載る。構成は dax6 と同じで、判断根拠は dax6 側の ADR-0012 にある。
 
 - ボード名は `xiao_ble//zmk`（v0.3 系の `seeeduino_xiao_ble` から変わった）
+- `zmk` を更新するときは、`zmk-dax-modules` の `src/combo/combo_engine.c` を新しい `app/src/combo.c` と比べる。combo の判定は `1fc72aaf` の `combo.c` の写し
 - 外部モジュールはすべて SHA で固定する。`revision: main` や tag の直当ては、将来の更新で壊れるので使わない
 - v0.3 系へ戻すなら `zmk-rgbled-widget` は `a3510c9d`（`seeeduino_xiao_ble` に対応する最後の版）
 
@@ -267,13 +268,15 @@ invert / scroll-layers は **driver Kconfig ではなく ZMK input-processor** �
 | キー割当・レイヤー名 | 公式 ZMK Studio の RPC |
 | エンコーダーの回転割当（レイヤー別・方向別） | `zmk-behavior-runtime-sensor-rotate`（`cormoran_rsr`） |
 | トラックボールの向き・倍率、Scroll レイヤーの向き・粗さ | `zmk-module-runtime-input-processor`（`cormoran_rip`） |
-| combo | `zmk-feature-runtime-combo`（`cormoran__runtime_combo`） |
+| combo | `zmk-dax-modules` の `src/combo/`（`dax_combo`） |
 | マクロ | `zmk-feature-runtime-macro`（`cormoran__runtime_macro`） |
 | マウスジェスチャー | `zmk-dax-modules`（`dax_gesture`） |
 | PAW3222 の CPI | `zmk-dax-modules`（`dax_trackball`） |
 
 - **keymap / overlay に書いた値は既定値で、アプリで保存した値が優先される。** 既定値を書き換えてフラッシュしても、保存済みの項目には反映されない。既定値に戻すにはアプリの reset か `settings_reset.uf2`（BLE のボンドも消える）
-- combo は `config/dax5.keymap` の `runtime_combo_defaults` に書く。`zmk,combos` のノードは無い
+- combo は `config/dax5.keymap` の `runtime_combo_defaults`（`dax,runtime-combo-defaults`）に書く。`zmk,combos` のノードは無い
+  - 判定は ZMK の `src/combo.c` の写しで、`zmk,combos` と同じに振る舞う。hold-tap の後、keymap の前でキーを受け取る。判断根拠は dax6 側の ADR-0015
+  - cormoran の `zmk-feature-runtime-combo` で保存した combo は引き継いでいない。flash に残るが読まれない
 - マクロは実行時マクロ（`&rmacro <slot>`）で、`zmk,behavior-macro` のノードは無い。`&esc_lang2_with_layer 3 0` の `0` がスロット番号。既定値のスロット番号はビルド時に決まらず、最初に作られたときの空きスロットに入る。ESC / LANG2 のキーが効かないときは、アプリのマクロ一覧で `esc_lang2` の番号を確かめる
 - **起動時に出る Studio の通知は、合計 256 バイトまでしか溜められない**（`CONFIG_ZMK_STUDIO_RPC_TX_BUF_SIZE`）。満杯になるとキー入力ごとキーボードが止まる。既定値のマクロは起動のたびに 1 個あたり通知 2 件を出すので、既定値のマクロを増やすときはバッファも広げる
 - 全レイヤーの `sensor-bindings` は rsr の behavior（`rsr_scroll` / `rsr_scroll_rev` / `rsr_hscroll` / `rsr_vol` / `rsr_bri`）を指す。rsr 以外にしたレイヤーはアプリから編集できない

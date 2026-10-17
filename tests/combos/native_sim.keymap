@@ -4,7 +4,7 @@
 // A combo fires only on the layers it lists, judged by the highest active layer alone.
 / {
     runtime_combo_defaults {
-        compatible = "cormoran,runtime-combo-defaults";
+        compatible = "dax,runtime-combo-defaults";
 
         both_layers {
             slot = <0>;

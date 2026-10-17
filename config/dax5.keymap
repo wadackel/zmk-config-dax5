@@ -28,10 +28,10 @@
 };
 
 / {
-    // Compile-time defaults for the runtime combos (`cormoran__runtime_combo`). A
+    // Compile-time defaults for the runtime combos (`dax_combo`). A
     // slot edited or deleted from a settings app keeps that stored value.
     runtime_combo_defaults {
-        compatible = "cormoran,runtime-combo-defaults";
+        compatible = "dax,runtime-combo-defaults";
 
         mo_device {
             slot = <0>;
