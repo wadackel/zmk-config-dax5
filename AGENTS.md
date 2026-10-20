@@ -27,6 +27,10 @@ nix develop --command just pristine
 - `build/dax5_L.uf2` - 左手側
 - `build/settings_reset.uf2` - 設定リセット用
 
+## 書き込み
+
+右手側（central）は daxial の `pnpm flash <uf2>` で、bootloader キーを押さずに書き込める。キーボードが報告する名前と UF2 のファイル名の先頭が一致しないと何も送らない。再起動だけなら `pnpm flash --restart --keyboard dax5`。どちらも、書き込み済みのファームウェアに `dax_system`（`CONFIG_ZMK_DAX_SYSTEM_RPC`）が入っていることが前提で、シリアルポートを他のプログラムが掴んでいないこと。左手側は Studio を持たないので、従来どおり bootloader に入れて UF2 をコピーする。
+
 ## テスト（シミュレーター）
 
 `tests/` に、ZMK の native_sim で動かすテストがある。模擬のキー入力とポインター入力を流し、出てくる HID レポートを期待値（`keycode_events.snapshot`）と比べる。
@@ -135,15 +139,15 @@ CPI は DTS の `res-cpi` プロパティで設定 (`res-cpi = <1000>` で PMW36
 
 ```c
 // config/dax5.keymap
-rsr_scroll: rsr_scroll {
-  compatible = "zmk,behavior-runtime-sensor-rotate";
+dax_enc_scroll: dax_enc_scroll {
+  compatible = "dax,behavior-encoder";
   tap-ms = <20>;  // ✅ OK: 16ms以上
   // tap-ms = <10>;  // ❌ NG: スクロールが一切動かなくなる
   // tap-ms を書かない  // ❌ NG: binding の既定値は 5
 };
 ```
 
-rsr の behavior は `&kp` を割り当てたもの（`rsr_vol` / `rsr_bri`）も含め、すべて `tap-ms = <20>` にする。設定アプリは割当を変えるとき、そのレイヤーの現在の `tap_ms` を引き継いで送るので、既定 5 のままのレイヤーに後から `&msc` を割り当てると無反応になる。
+dax のエンコーダー behavior は `&kp` を割り当てたもの（`dax_enc_vol` / `dax_enc_bri`）も含め、すべて `tap-ms = <20>` にする。daxial は割当を変えるとき、その方向の今の tap を引き継ぐので、既定 5 のままのレイヤーに後から `&msc` を割り当てると無反応になる。
 
 **理由:**
 - `&msc`（スクロール）の内部イベント周期は**16ms**
@@ -266,20 +270,23 @@ invert / scroll-layers は **driver Kconfig ではなく ZMK input-processor** �
 | 機能 | 仕組み（custom subsystem の識別子） |
 |---|---|
 | キー割当・レイヤー名 | 公式 ZMK Studio の RPC |
-| エンコーダーの回転割当（レイヤー別・方向別） | `zmk-behavior-runtime-sensor-rotate`（`cormoran_rsr`） |
-| トラックボールの向き・倍率、Scroll レイヤーの向き・粗さ | `zmk-module-runtime-input-processor`（`cormoran_rip`） |
+| エンコーダーの回転割当（レイヤー別・方向別） | `zmk-dax-modules` の `src/encoder/`（`dax_encoder`、値は `dax_settings` 経由） |
+| トラックボールの向き・倍率、Scroll レイヤーの向き・粗さ | `zmk-dax-modules` の `src/pointer/`（`dax_pointer`、値は `dax_settings` 経由） |
 | combo | `zmk-dax-modules` の `src/combo/`（`dax_combo`） |
-| マクロ | `zmk-feature-runtime-macro`（`cormoran__runtime_macro`） |
-| マウスジェスチャー | `zmk-dax-modules`（`dax_gesture`） |
-| PAW3222 の CPI | `zmk-dax-modules`（`dax_trackball`） |
+| マクロ | `zmk-dax-modules` の `src/macro/`（`dax_macro`） |
+| マウスジェスチャー | `zmk-dax-modules`（`dax_gesture`、値は `dax_settings` 経由） |
+| PAW3222 の CPI | `zmk-dax-modules`（`dax_trackball`、値は `dax_settings` 経由） |
 
 - **keymap / overlay に書いた値は既定値で、アプリで保存した値が優先される。** 既定値を書き換えてフラッシュしても、保存済みの項目には反映されない。既定値に戻すにはアプリの reset か `settings_reset.uf2`（BLE のボンドも消える）
+- 設定の置き場は `zmk-dax-modules` の保存層（Zephyr の settings の `dax/<owner>/<key>`）。どの編集も Save まで RAM にあり、Discard で戻る
+- cormoran の `zmk-feature-custom-settings`、`zmk-module-runtime-input-processor`、`zmk-behavior-runtime-sensor-rotate`、`zmk-feature-runtime-macro` で保存した値は引き継いでいない。flash に残るが読まれない
 - combo は `config/dax5.keymap` の `runtime_combo_defaults`（`dax,runtime-combo-defaults`）に書く。`zmk,combos` のノードは無い
   - 判定は ZMK の `src/combo.c` の写しで、`zmk,combos` と同じに振る舞う。hold-tap の後、keymap の前でキーを受け取る。判断根拠は dax6 側の ADR-0015
   - cormoran の `zmk-feature-runtime-combo` で保存した combo は引き継いでいない。flash に残るが読まれない
-- マクロは実行時マクロ（`&rmacro <slot>`）で、`zmk,behavior-macro` のノードは無い。`&esc_lang2_with_layer 3 0` の `0` がスロット番号。既定値のスロット番号はビルド時に決まらず、最初に作られたときの空きスロットに入る。ESC / LANG2 のキーが効かないときは、アプリのマクロ一覧で `esc_lang2` の番号を確かめる
-- **起動時に出る Studio の通知は、合計 256 バイトまでしか溜められない**（`CONFIG_ZMK_STUDIO_RPC_TX_BUF_SIZE`）。満杯になるとキー入力ごとキーボードが止まる。既定値のマクロは起動のたびに 1 個あたり通知 2 件を出すので、既定値のマクロを増やすときはバッファも広げる
-- 全レイヤーの `sensor-bindings` は rsr の behavior（`rsr_scroll` / `rsr_scroll_rev` / `rsr_hscroll` / `rsr_vol` / `rsr_bri`）を指す。rsr 以外にしたレイヤーはアプリから編集できない
+- マクロは `&dax_macro <slot>` で、`zmk,behavior-macro` のノードは無い。`esc_lang2` は `config/dax5.keymap` の `runtime_macro_defaults`（`dax,runtime-macro-defaults`）にある既定値で、`&esc_lang2_with_layer 3 0` の `0` が `esc_lang2` の `slot`
+- **マクロのスロットは固定。** 既定値は `slot` で置き場所が決まり、アプリで名前を変えてもスロットは変わらない。既定値を足すときは空いている番号を `slot` に書く
+- **起動時に出る Studio の通知は、合計 256 バイトまでしか溜められない**（`CONFIG_ZMK_STUDIO_RPC_TX_BUF_SIZE`）。満杯になるとキー入力ごとキーボードが止まる。マクロとジェスチャーの既定値は通知を出さない
+- 全レイヤーの `sensor-bindings` は zmk-dax-modules の `dax,behavior-encoder`（`dax_enc_scroll` / `dax_enc_scroll_rev` / `dax_enc_hscroll` / `dax_enc_vol` / `dax_enc_bri`）を指す。`dax_enc_*` 以外にしたレイヤーはアプリから編集できない。割当はセンサー × layer id × 方向ごとで、Reset も含め Save まで RAM にある
 - 実行時に変えられないもの: エンコーダーの `triggers-per-rotation`、hold-tap のタイミング
 
 ## 現在のレイヤー構成
