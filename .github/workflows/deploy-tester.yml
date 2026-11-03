@@ -37,7 +37,7 @@ jobs:
           BASE_PATH: /zmk-config-dax5/
         run: pnpm build
 
-      - uses: actions/upload-pages-artifact@v3.0.1
+      - uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: tools/tester/dist
 
